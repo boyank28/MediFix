@@ -3,127 +3,20 @@ session_start();
 include 'koneksi2.php';
 date_default_timezone_set('Asia/Jakarta');
 
-// === CEK LOGIN ===
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
     exit;
 }
 $nama = $_SESSION['nama'] ?? 'Pengguna';
 
-// === Fungsi untuk membaca data panggilan terakhir dari file ===
-function getLastCall() {
-    // Coba beberapa lokasi file
-    $locations = [
-        __DIR__ . '/data/last_farmasi.json',        // Lokasi utama (data folder)
-        __DIR__ . '/last_farmasi.json',             // Fallback 1 (root folder)
-        sys_get_temp_dir() . '/last_farmasi.json'   // Fallback 2 (temp folder)
-    ];
-    
-    foreach ($locations as $file) {
-        if (file_exists($file)) {
-            $content = file_get_contents($file);
-            $data = json_decode($content, true);
-            
-            // Debug log
-            error_log("✅ Reading file: " . $file);
-            error_log("File content: " . $content);
-            
-            // Check if data is fresh (within last 2 hours)
-            if (isset($data['waktu'])) {
-                $callTime = strtotime($data['waktu']);
-                $currentTime = time();
-                $diff = $currentTime - $callTime;
-                
-                // If more than 2 hours, return null
-                if ($diff > 7200) {
-                    error_log("⚠️ Data too old (" . round($diff/60) . " minutes), returning null");
-                    continue;
-                }
-            }
-            
-            error_log("✅ Valid data found in: " . $file);
-            return $data;
-        }
-    }
-    
-    error_log("❌ No valid file found in any location");
-    return null;
-}
-
-// === Ambil data resep hari ini - SESUAI KHANZA ASLI ===
-try {
-    $stmt = $pdo_simrs->prepare("
-        SELECT 
-            ro.no_resep, ro.tgl_peresepan, ro.jam_peresepan, ro.status as status_resep,
-            r.no_rkm_medis, p.nm_pasien, d.nm_dokter, pl.kd_poli, pl.nm_poli,
-            CASE 
-                WHEN EXISTS (SELECT 1 FROM resep_dokter_racikan rr WHERE rr.no_resep = ro.no_resep)
-                THEN 'Racikan'
-                ELSE 'Non Racikan'
-            END AS jenis_resep
-        FROM resep_obat ro
-        INNER JOIN reg_periksa r ON ro.no_rawat = r.no_rawat
-        INNER JOIN pasien p ON r.no_rkm_medis = p.no_rkm_medis
-        INNER JOIN dokter d ON ro.kd_dokter = d.kd_dokter
-        LEFT JOIN poliklinik pl ON r.kd_poli = pl.kd_poli
-        WHERE ro.tgl_peresepan = CURDATE()
-          AND ro.status = 'ralan'
-          AND ro.jam_peresepan <> '00:00:00'
-        ORDER BY ro.tgl_peresepan DESC, ro.jam_peresepan DESC
-    ");
-    $stmt->execute();
-    $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    // Pisahkan berdasarkan jenis resep
-    $nonRacik = array_filter($data, fn($r) => $r['jenis_resep'] === 'Non Racikan');
-    $racik = array_filter($data, fn($r) => $r['jenis_resep'] === 'Racikan');
-
-    // Ambil data panggilan terakhir dari file
-    $lastCall = getLastCall();
-    $sedangDilayani = null;
-    
-    if ($lastCall && isset($lastCall['no_resep'])) {
-        // Langsung gunakan data dari file JSON
-        $sedangDilayani = [
-            'no_resep' => $lastCall['no_resep'],
-            'nm_pasien' => $lastCall['nm_pasien'] ?? '-',
-            'nm_poli' => $lastCall['nm_poli'] ?? '-',
-            'jenis_resep' => $lastCall['jenis_resep'] ?? 'Non Racikan'
-        ];
-        
-        error_log("Display will show: " . print_r($sedangDilayani, true));
-    } else {
-        error_log("No last call data available");
-    }
-
-    // Fungsi sensor nama pasien
-    function sensorNama($nama) {
-        $parts = explode(' ', $nama);
-        $result = [];
-        foreach ($parts as $p) {
-            $len = mb_strlen($p);
-            if ($len <= 2) {
-                $result[] = str_repeat('*', $len);
-            } else {
-                $result[] = mb_substr($p, 0, 1) . str_repeat('*', $len - 2) . mb_substr($p, -1);
-            }
-        }
-        return implode(' ', $result);
-    }
-
-    // Konversi tanggal ke Bahasa Indonesia
-    function tanggalIndonesia($tgl) {
-        $hari = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
-        $bulan = [1=>'Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
-        $tanggal = date('j', strtotime($tgl));
-        $bulanIdx = $bulan[(int)date('n', strtotime($tgl))];
-        $tahun = date('Y', strtotime($tgl));
-        $hariNama = $hari[(int)date('w', strtotime($tgl))];
-        return "$hariNama, $tanggal $bulanIdx $tahun";
-    }
-
-} catch (PDOException $e) {
-    die("Gagal mengambil data: " . $e->getMessage());
+function tanggalIndonesia($tgl) {
+    $hari = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+    $bulan = [1=>'Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+    $tanggal = date('j', strtotime($tgl));
+    $bulanIdx = $bulan[(int)date('n', strtotime($tgl))];
+    $tahun = date('Y', strtotime($tgl));
+    $hariNama = $hari[(int)date('w', strtotime($tgl))];
+    return "$hariNama, $tanggal $bulanIdx $tahun";
 }
 ?>
 <!doctype html>
@@ -132,10 +25,19 @@ try {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Display Antrian Farmasi - MediFix</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
+:root {
+    --primary: #2563eb;
+    --secondary: #f59e0b;
+    --accent: #06b6d4;
+    --dark: #0f172a;
+    --light: #f8fafc;
+    --gray: #64748b;
+    --glass: rgba(255, 255, 255, 0.1);
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -143,621 +45,464 @@ try {
 }
 
 body {
-    font-family: 'Inter', sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    font-family: 'Poppins', sans-serif;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
     min-height: 100vh;
     overflow-x: hidden;
+    position: relative;
+}
+
+body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: 
+        radial-gradient(circle at 20% 30%, rgba(59, 130, 246, 0.1) 0%, transparent 50%),
+        radial-gradient(circle at 80% 70%, rgba(245, 158, 11, 0.1) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+.container {
+    position: relative;
+    z-index: 1;
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 0 2rem;
 }
 
 /* Header */
 .header {
-    background: rgba(255, 255, 255, 0.98);
+    background: rgba(255, 255, 255, 0.05);
     backdrop-filter: blur(20px);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     padding: 1.5rem 0;
-    margin-bottom: 1.5rem;
+    margin-bottom: 2rem;
+    animation: slideDown 0.6s ease-out;
+}
+
+@keyframes slideDown {
+    from { transform: translateY(-100%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
 }
 
 .header-content {
-    display: flex;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 2rem;
     align-items: center;
 }
 
-.brand-section {
+.brand {
     display: flex;
     align-items: center;
     gap: 1rem;
 }
 
 .brand-icon {
-    width: 70px;
-    height: 70px;
-    background: linear-gradient(135deg, #ff9800, #ff6f00);
-    border-radius: 15px;
+    width: 56px;
+    height: 56px;
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    border-radius: 16px;
     display: flex;
     align-items: center;
     justify-content: center;
+    box-shadow: 0 8px 32px rgba(37, 99, 235, 0.3);
+}
+
+.brand-icon i {
+    font-size: 28px;
     color: white;
-    font-size: 36px;
-    box-shadow: 0 4px 15px rgba(255, 152, 0, 0.3);
 }
 
 .brand-text h1 {
-    font-size: 32px;
-    font-weight: 900;
-    color: #1e293b;
+    font-size: 24px;
+    font-weight: 700;
+    color: white;
     margin: 0;
     letter-spacing: -0.5px;
 }
 
 .brand-text p {
-    font-size: 16px;
-    color: #64748b;
+    font-size: 14px;
+    color: var(--gray);
     margin: 0;
-    font-weight: 600;
+    font-weight: 500;
 }
 
-.header-info {
-    text-align: right;
+.header-center {
+    text-align: center;
 }
 
 .date-display {
-    font-size: 16px;
-    color: #475569;
-    font-weight: 600;
+    font-size: 14px;
+    color: var(--gray);
+    font-weight: 500;
     margin-bottom: 0.5rem;
 }
 
 .clock-display {
-    font-size: 42px;
-    font-weight: 800;
-    color: #ff9800;
+    font-size: 36px;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
     font-variant-numeric: tabular-nums;
     letter-spacing: 2px;
 }
 
 /* Main Grid */
-.display-grid {
+.main-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1.5rem;
-    margin-bottom: 1.5rem;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2rem;
+    margin-bottom: 2rem;
+    animation: fadeIn 0.8s ease-out 0.2s both;
 }
 
-/* Section Card */
-.section-card {
-    background: white;
-    border-radius: 20px;
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Queue Card */
+.queue-card {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 24px;
     overflow: hidden;
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+    transition: all 0.3s ease;
+    position: relative;
 }
 
-.section-header {
+.queue-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--primary), var(--accent));
+}
+
+.queue-card.racikan::before {
+    background: linear-gradient(90deg, var(--secondary), #dc2626);
+}
+
+.queue-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.card-header {
     padding: 1.5rem 2rem;
-    color: white;
+    background: rgba(255, 255, 255, 0.03);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.card-title {
     display: flex;
     align-items: center;
-    gap: 1rem;
-    font-size: 24px;
-    font-weight: 800;
+    gap: 0.75rem;
+    font-size: 18px;
+    font-weight: 700;
+    color: white;
     text-transform: uppercase;
     letter-spacing: 1px;
 }
 
-.section-header.non-racikan {
-    background: linear-gradient(135deg, #3b82f6, #2563eb);
+.card-title i {
+    font-size: 24px;
+    color: var(--accent);
 }
 
-.section-header.racikan {
-    background: linear-gradient(135deg, #ff9800, #ff6f00);
+.card-title.racikan i {
+    color: var(--secondary);
 }
 
-.section-body {
+.card-body {
     padding: 3rem 2rem;
     text-align: center;
-    min-height: 380px;
+    min-height: 360px;
     display: flex;
     flex-direction: column;
     justify-content: center;
 }
 
-.queue-label {
-    font-size: 18px;
-    font-weight: 700;
-    color: #64748b;
+.status-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gray);
     text-transform: uppercase;
     letter-spacing: 2px;
-    margin-bottom: 1.5rem;
+    margin-bottom: 2rem;
 }
 
 .queue-number {
-    font-size: 140px;
+    font-size: 120px;
     font-weight: 900;
     line-height: 1;
     margin-bottom: 2rem;
     font-variant-numeric: tabular-nums;
-    text-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-    transition: all 0.3s ease;
-}
-
-.queue-number.non-racikan {
-    color: #3b82f6;
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
 }
 
 .queue-number.racikan {
-    color: #ff9800;
+    background: linear-gradient(135deg, var(--secondary), #dc2626);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
 }
 
 .queue-number.empty {
-    color: #cbd5e1;
-    font-size: 90px;
+    color: rgba(255, 255, 255, 0.1);
+    font-size: 80px;
+    background: none;
+    -webkit-text-fill-color: initial;
+}
+
+.queue-number.active {
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+/* Smooth fade transition for content change */
+.queue-number.fade-out {
+    opacity: 0;
+    transform: scale(0.95);
+}
+
+.queue-number.fade-in {
+    animation: fadeInScale 0.5s ease-out forwards;
+}
+
+@keyframes fadeInScale {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
 }
 
 .patient-info {
-    background: #f8fafc;
-    border-radius: 15px;
-    padding: 1.5rem 2rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    padding: 1.5rem;
     margin-top: 1.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.info-row {
+.info-item {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 1rem;
+    gap: 0.75rem;
     padding: 0.75rem 0;
+    font-size: 16px;
+    font-weight: 500;
+    color: white;
+    transition: all 0.3s ease;
+}
+
+.info-item i {
     font-size: 20px;
-    font-weight: 600;
-    color: #1e293b;
+    color: var(--accent);
 }
 
-.info-row i {
-    font-size: 26px;
-    color: #ff9800;
+.info-item.empty {
+    color: var(--gray);
 }
 
-.info-row.empty {
-    color: #94a3b8;
-}
-
-/* Info Box */
-.info-box {
-    background: white;
+/* Info Banner */
+.info-banner {
+    background: rgba(245, 158, 11, 0.1);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(245, 158, 11, 0.2);
     border-radius: 20px;
     padding: 2rem 2.5rem;
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
-    border-left: 6px solid #ff9800;
+    margin-bottom: 2rem;
+    animation: fadeIn 1s ease-out 0.4s both;
 }
 
-.info-box-title {
-    font-size: 20px;
-    font-weight: 800;
-    color: #1e293b;
-    margin-bottom: 1rem;
+.info-banner-header {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 1rem;
+    margin-bottom: 1rem;
 }
 
-.info-box-title i {
-    color: #ff9800;
-    font-size: 26px;
+.info-banner-header i {
+    font-size: 28px;
+    color: var(--secondary);
 }
 
-.info-box-content {
-    font-size: 17px;
-    line-height: 1.8;
-    color: #475569;
-}
-
-.info-box-content strong {
-    color: #1e293b;
+.info-banner-title {
+    font-size: 18px;
     font-weight: 700;
+    color: white;
 }
 
-/* Stats Banner */
-.stats-banner {
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.9));
-    backdrop-filter: blur(10px);
-    border-radius: 20px;
-    padding: 2rem;
-    margin-bottom: 1.5rem;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-}
-
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 1.5rem;
-}
-
-.stat-item {
-    text-align: center;
-    padding: 1.5rem 1rem;
-    background: white;
-    border-radius: 12px;
-    border: 2px solid #e2e8f0;
-}
-
-.stat-value {
-    font-size: 48px;
-    font-weight: 900;
-    color: #ff9800;
-    margin-bottom: 0.5rem;
-    line-height: 1;
-}
-
-.stat-label {
+.info-banner-content {
     font-size: 15px;
-    font-weight: 700;
-    color: #64748b;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    line-height: 1.7;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.info-banner-content strong {
+    color: var(--secondary);
+    font-weight: 600;
 }
 
 /* Footer */
 .footer {
-    background: linear-gradient(135deg, rgba(255, 152, 0, 0.95), rgba(255, 111, 0, 0.95));
-    backdrop-filter: blur(10px);
-    color: white;
-    padding: 1.25rem 0;
     position: fixed;
     bottom: 0;
-    width: 100%;
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
-    overflow: hidden;
+    left: 0;
+    right: 0;
+    background: rgba(15, 23, 42, 0.95);
+    backdrop-filter: blur(20px);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 1rem 0;
+    z-index: 100;
 }
 
 .marquee-container {
-    display: flex;
-    align-items: center;
-    font-size: 20px;
-    font-weight: 600;
+    overflow: hidden;
     white-space: nowrap;
 }
 
 .marquee {
     display: inline-block;
     padding-left: 100%;
-    animation: marquee 25s linear infinite;
+    animation: scroll 30s linear infinite;
+    color: white;
+    font-size: 16px;
+    font-weight: 500;
 }
 
-@keyframes marquee {
-    from { transform: translateX(0); }
-    to { transform: translateX(-100%); }
+@keyframes scroll {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-100%); }
 }
 
-/* Pulse Animation for Active Number */
-@keyframes pulse {
-    0%, 100% {
-        transform: scale(1);
-    }
-    50% {
-        transform: scale(1.05);
-    }
+.marquee i {
+    color: var(--secondary);
+    margin: 0 0.5rem;
 }
 
-.queue-number:not(.empty) {
-    animation: pulse 2s ease-in-out infinite;
+/* Update Indicator */
+.update-indicator {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: rgba(16, 185, 129, 0.2);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: 12px;
+    padding: 8px 16px;
+    color: #10b981;
+    font-size: 13px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    opacity: 0;
+    transform: translateX(100px);
+    transition: all 0.3s ease;
+    z-index: 1000;
 }
 
-/* ========================================
-   RESPONSIVE BREAKPOINTS
-   ======================================== */
+.update-indicator.show {
+    opacity: 1;
+    transform: translateX(0);
+}
 
-/* Large Desktop / TV (1920px+) */
+.update-indicator i {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Responsive */
 @media (min-width: 1920px) {
-    .brand-icon {
-        width: 100px;
-        height: 100px;
-        font-size: 50px;
-    }
-    
-    .brand-text h1 {
-        font-size: 48px;
-    }
-    
-    .brand-text p {
-        font-size: 22px;
-    }
-    
-    .date-display {
-        font-size: 22px;
-    }
-    
-    .clock-display {
-        font-size: 60px;
-    }
-    
-    .section-header {
-        padding: 2.5rem 3rem;
-        font-size: 36px;
-    }
-    
-    .section-body {
-        padding: 5rem 3rem;
-        min-height: 500px;
-    }
-    
-    .queue-label {
-        font-size: 26px;
-        margin-bottom: 2rem;
-    }
-    
-    .queue-number {
-        font-size: 220px;
-        margin-bottom: 3rem;
-    }
-    
-    .queue-number.empty {
-        font-size: 140px;
-    }
-    
-    .info-row {
-        font-size: 32px;
-        padding: 1.25rem 0;
-    }
-    
-    .info-row i {
-        font-size: 40px;
-    }
-    
-    .stat-value {
-        font-size: 72px;
-    }
-    
-    .stat-label {
-        font-size: 22px;
-    }
-    
-    .info-box-title {
-        font-size: 32px;
-    }
-    
-    .info-box-title i {
-        font-size: 40px;
-    }
-    
-    .info-box-content {
-        font-size: 26px;
-    }
-    
-    .marquee-container {
-        font-size: 32px;
-    }
+    .queue-number { font-size: 180px; }
+    .queue-number.empty { font-size: 120px; }
+    .card-body { min-height: 460px; padding: 4rem 3rem; }
+    .card-title { font-size: 24px; }
+    .info-item { font-size: 20px; }
+    .clock-display { font-size: 48px; }
 }
 
-/* Desktop (1440px - 1919px) */
-@media (min-width: 1440px) and (max-width: 1919px) {
-    .brand-icon {
-        width: 85px;
-        height: 85px;
-        font-size: 42px;
-    }
-    
-    .brand-text h1 {
-        font-size: 40px;
-    }
-    
-    .brand-text p {
-        font-size: 19px;
-    }
-    
-    .clock-display {
-        font-size: 52px;
-    }
-    
-    .section-header {
-        font-size: 30px;
-    }
-    
-    .queue-number {
-        font-size: 180px;
-    }
-    
-    .queue-number.empty {
-        font-size: 110px;
-    }
-    
-    .info-row {
-        font-size: 26px;
-    }
-    
-    .info-row i {
-        font-size: 32px;
-    }
-    
-    .stat-value {
-        font-size: 60px;
-    }
-    
-    .stat-label {
-        font-size: 18px;
-    }
-    
-    .info-box-title {
-        font-size: 26px;
-    }
-    
-    .info-box-content {
-        font-size: 21px;
-    }
-    
-    .marquee-container {
-        font-size: 26px;
-    }
+@media (max-width: 1024px) {
+    .main-grid { grid-template-columns: 1fr; }
+    .header-content { grid-template-columns: 1fr; text-align: center; gap: 1rem; }
+    .header-center { order: -1; }
 }
 
-/* Standard Desktop / Laptop (1024px - 1439px) */
-@media (min-width: 1024px) and (max-width: 1439px) {
-    .container {
-        max-width: 100%;
-        padding: 0 2rem;
-    }
-    
-    .section-body {
-        min-height: 320px;
-    }
-    
-    .queue-number {
-        font-size: 120px;
-    }
-    
-    .queue-number.empty {
-        font-size: 80px;
-    }
-}
-
-/* Tablet Landscape (768px - 1023px) */
-@media (min-width: 768px) and (max-width: 1023px) {
-    .display-grid {
-        grid-template-columns: 1fr;
-        gap: 1.5rem;
-    }
-    
-    .section-body {
-        min-height: 280px;
-    }
-    
-    .queue-number {
-        font-size: 110px;
-    }
-    
-    .queue-number.empty {
-        font-size: 70px;
-    }
-    
-    .stats-grid {
-        grid-template-columns: repeat(3, 1fr);
-    }
-}
-
-/* Mobile & Tablet Portrait (max 767px) */
-@media (max-width: 767px) {
-    .header-content {
-        flex-direction: column;
-        gap: 1.5rem;
-        text-align: center;
-    }
-    
-    .header-info {
-        text-align: center;
-    }
-    
-    .brand-icon {
-        width: 60px;
-        height: 60px;
-        font-size: 30px;
-    }
-    
-    .brand-text h1 {
-        font-size: 24px;
-    }
-    
-    .brand-text p {
-        font-size: 14px;
-    }
-    
-    .clock-display {
-        font-size: 36px;
-    }
-    
-    .display-grid {
-        grid-template-columns: 1fr;
-    }
-    
-    .section-header {
-        font-size: 20px;
-        padding: 1rem 1.5rem;
-    }
-    
-    .section-body {
-        padding: 2rem 1.5rem;
-        min-height: 260px;
-    }
-    
-    .queue-number {
-        font-size: 90px;
-    }
-    
-    .queue-number.empty {
-        font-size: 60px;
-    }
-    
-    .info-row {
-        font-size: 16px;
-    }
-    
-    .info-row i {
-        font-size: 20px;
-    }
-    
-    .stats-grid {
-        grid-template-columns: 1fr;
-        gap: 1rem;
-    }
-    
-    .stat-value {
-        font-size: 36px;
-    }
-    
-    .stat-label {
-        font-size: 13px;
-    }
-    
-    .info-box-title {
-        font-size: 16px;
-    }
-    
-    .info-box-content {
-        font-size: 14px;
-    }
-    
-    .marquee-container {
-        font-size: 16px;
-    }
-}
-
-/* Loading Animation */
-.loading-indicator {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #ff9800;
-    animation: blink 1.4s infinite both;
-    margin-left: 10px;
-}
-
-@keyframes blink {
-    0%, 80%, 100% { opacity: 0; }
-    40% { opacity: 1; }
+@media (max-width: 768px) {
+    .queue-number { font-size: 90px; }
+    .queue-number.empty { font-size: 60px; }
+    .card-body { padding: 2rem 1.5rem; min-height: 280px; }
+    .card-title { font-size: 16px; }
+    .info-item { font-size: 14px; }
+    .clock-display { font-size: 32px; }
+    .marquee { font-size: 14px; }
 }
 </style>
 </head>
 <body>
 
+<!-- Update Indicator -->
+<div class="update-indicator" id="updateIndicator">
+    <i class="bi bi-arrow-clockwise"></i>
+    <span>Memperbarui data...</span>
+</div>
+
 <!-- Header -->
 <div class="header">
     <div class="container">
         <div class="header-content">
-            <div class="brand-section">
+            <div class="brand">
                 <div class="brand-icon">
                     <i class="bi bi-capsule-pill"></i>
                 </div>
                 <div class="brand-text">
-                    <h1>Display Antrian Farmasi</h1>
-                    <p>RS Permata Hati - MediFix System</p>
+                    <h1>Antrian Farmasi</h1>
+                    <p>RS Permata Hati</p>
                 </div>
             </div>
-            <div class="header-info">
+            
+            <div class="header-center">
                 <div class="date-display">
-                    <i class="bi bi-calendar-check"></i>
+                    <i class="bi bi-calendar3"></i>
                     <?= tanggalIndonesia(date('Y-m-d')) ?>
                 </div>
                 <div class="clock-display" id="clock">00:00:00</div>
             </div>
+            
+            <div style="width: 56px;"></div>
         </div>
     </div>
 </div>
@@ -765,114 +510,58 @@ body {
 <!-- Main Content -->
 <div class="container" style="padding-bottom: 100px;">
     
-  
-    
-    <!-- Display Grid -->
-    <div class="display-grid">
+    <!-- Queue Grid -->
+    <div class="main-grid">
         
         <!-- Non Racikan -->
-        <div class="section-card">
-            <div class="section-header non-racikan">
-                <i class="bi bi-prescription2"></i>
-                <span>Non Racikan</span>
+        <div class="queue-card">
+            <div class="card-header">
+                <div class="card-title">
+                    <i class="bi bi-prescription2"></i>
+                    <span>Non Racikan</span>
+                </div>
             </div>
-            <div class="section-body">
-                <div class="queue-label">Sedang Dilayani</div>
-                <?php
-                    $nomorNon = '-';
-                    $namaNon = '-';
-                    $poliNon = '-';
-                    $hasDataNon = false;
-                    
-                    if ($sedangDilayani && $sedangDilayani['jenis_resep'] === 'Non Racikan') {
-                        $nomorNon = 'F' . str_pad(substr($sedangDilayani['no_resep'], -4), 4, '0', STR_PAD_LEFT);
-                        $namaNon = sensorNama($sedangDilayani['nm_pasien'] ?? '-');
-                        $poliNon = $sedangDilayani['nm_poli'] ?? '-';
-                        $hasDataNon = true;
-                    }
-                ?>
-                <div class="queue-number non-racikan <?= !$hasDataNon ? 'empty' : '' ?>">
-                    <?= htmlspecialchars($nomorNon) ?>
-                </div>
-                
-                <?php if ($hasDataNon): ?>
-                <div class="patient-info">
-                    <div class="info-row">
-                        <i class="bi bi-person-fill"></i>
-                        <span><?= htmlspecialchars($namaNon) ?></span>
-                    </div>
-                    <div class="info-row">
-                        <i class="bi bi-hospital-fill"></i>
-                        <span><?= htmlspecialchars($poliNon) ?></span>
-                    </div>
-                </div>
-                <?php else: ?>
-                <div class="patient-info">
-                    <div class="info-row empty">
+            <div class="card-body">
+                <div class="status-label">Sedang Dilayani</div>
+                <div class="queue-number empty" id="nonRacikanNumber">-</div>
+                <div class="patient-info" id="nonRacikanInfo">
+                    <div class="info-item empty">
                         <i class="bi bi-hourglass-split"></i>
                         <span>Menunggu Panggilan</span>
                     </div>
                 </div>
-                <?php endif; ?>
             </div>
         </div>
         
         <!-- Racikan -->
-        <div class="section-card">
-            <div class="section-header racikan">
-                <i class="bi bi-capsule"></i>
-                <span>Racikan</span>
+        <div class="queue-card racikan">
+            <div class="card-header">
+                <div class="card-title racikan">
+                    <i class="bi bi-capsule"></i>
+                    <span>Racikan</span>
+                </div>
             </div>
-            <div class="section-body">
-                <div class="queue-label">Sedang Dilayani</div>
-                <?php
-                    $nomorRacik = '-';
-                    $namaRacik = '-';
-                    $poliRacik = '-';
-                    $hasDataRacik = false;
-                    
-                    if ($sedangDilayani && $sedangDilayani['jenis_resep'] === 'Racikan') {
-                        $nomorRacik = 'F' . str_pad(substr($sedangDilayani['no_resep'], -4), 4, '0', STR_PAD_LEFT);
-                        $namaRacik = sensorNama($sedangDilayani['nm_pasien'] ?? '-');
-                        $poliRacik = $sedangDilayani['nm_poli'] ?? '-';
-                        $hasDataRacik = true;
-                    }
-                ?>
-                <div class="queue-number racikan <?= !$hasDataRacik ? 'empty' : '' ?>">
-                    <?= htmlspecialchars($nomorRacik) ?>
-                </div>
-                
-                <?php if ($hasDataRacik): ?>
-                <div class="patient-info">
-                    <div class="info-row">
-                        <i class="bi bi-person-fill"></i>
-                        <span><?= htmlspecialchars($namaRacik) ?></span>
-                    </div>
-                    <div class="info-row">
-                        <i class="bi bi-hospital-fill"></i>
-                        <span><?= htmlspecialchars($poliRacik) ?></span>
-                    </div>
-                </div>
-                <?php else: ?>
-                <div class="patient-info">
-                    <div class="info-row empty">
+            <div class="card-body">
+                <div class="status-label">Sedang Dilayani</div>
+                <div class="queue-number racikan empty" id="racikanNumber">-</div>
+                <div class="patient-info" id="racikanInfo">
+                    <div class="info-item empty">
                         <i class="bi bi-hourglass-split"></i>
                         <span>Menunggu Panggilan</span>
                     </div>
                 </div>
-                <?php endif; ?>
             </div>
         </div>
         
     </div>
     
-    <!-- Info Box -->
-    <div class="info-box">
-        <div class="info-box-title">
+    <!-- Info Banner -->
+    <div class="info-banner">
+        <div class="info-banner-header">
             <i class="bi bi-info-circle-fill"></i>
-            <span>Informasi Waktu Tunggu Resep Racikan</span>
+            <div class="info-banner-title">Informasi Waktu Tunggu Resep Racikan</div>
         </div>
-        <div class="info-box-content">
+        <div class="info-banner-content">
             Sesuai <strong>Permenkes 72/2016</strong>, obat racikan membutuhkan proses tambahan 
             (penimbangan, peracikan, pelabelan & validasi apoteker). 
             Estimasi waktu pelayanan: <strong>± 15 – 60 menit</strong>. 
@@ -887,18 +576,23 @@ body {
     <div class="marquee-container">
         <div class="marquee">
             <i class="bi bi-heart-pulse-fill"></i> 
-            Selamat datang di RS Permata Hati • Layanan Farmasi Siap Melayani Anda dengan Sepenuh Hati 💊 • 
-            Untuk informasi lebih lanjut hubungi loket farmasi • 
-            Mohon ambil nomor antrian dan tunggu panggilan Anda • 
-            Terima kasih atas kepercayaan Anda 
-            <i class="bi bi-heart-pulse-fill"></i> &nbsp;&nbsp;&nbsp;&nbsp;
+            Selamat datang di RS Permata Hati
+            <i class="bi bi-dot"></i>
+            Layanan Farmasi Siap Melayani Anda dengan Sepenuh Hati
+            <i class="bi bi-dot"></i>
+            Mohon ambil nomor antrian dan tunggu panggilan Anda
+            <i class="bi bi-dot"></i>
+            Terima kasih atas kepercayaan Anda
+            <i class="bi bi-heart-pulse-fill"></i>
+            &nbsp;&nbsp;&nbsp;&nbsp;
         </div>
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-// === Jam Digital ===
+// ========================================
+// CLOCK UPDATE
+// ========================================
 function updateClock() {
     const now = new Date();
     const hours = String(now.getHours()).padStart(2, '0');
@@ -910,46 +604,115 @@ function updateClock() {
 setInterval(updateClock, 1000);
 updateClock();
 
-// === Auto Refresh setiap 5 detik untuk update data terbaru ===
-setInterval(() => {
-    location.reload();
-}, 5000);
+// ========================================
+// SMOOTH DATA UPDATE WITHOUT RELOAD
+// ========================================
+let currentData = {
+    nonRacikan: null,
+    racikan: null
+};
 
-// === Page Visibility API - pause refresh ketika tab tidak aktif ===
-let refreshInterval;
-
-function startRefresh() {
-    refreshInterval = setInterval(() => {
-        location.reload();
-    }, 5000);
-}
-
-function stopRefresh() {
-    if (refreshInterval) {
-        clearInterval(refreshInterval);
+function updateDisplay(data, type) {
+    const numberEl = document.getElementById(`${type}Number`);
+    const infoEl = document.getElementById(`${type}Info`);
+    
+    const newData = data[type === 'nonRacikan' ? 'non_racikan' : 'racikan'];
+    const oldData = currentData[type];
+    
+    // Check if data changed
+    const dataChanged = !oldData || 
+                       oldData.nomor !== newData.nomor || 
+                       oldData.nama !== newData.nama;
+    
+    if (dataChanged) {
+        // Smooth transition
+        numberEl.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+        numberEl.style.opacity = '0';
+        numberEl.style.transform = 'scale(0.95)';
+        
+        setTimeout(() => {
+            // Update content
+            if (newData.has_data) {
+                numberEl.textContent = newData.nomor;
+                numberEl.className = `queue-number ${type === 'racikan' ? 'racikan' : ''} active`;
+                
+                infoEl.innerHTML = `
+                    <div class="info-item">
+                        <i class="bi bi-person-fill"></i>
+                        <span>${newData.nama}</span>
+                    </div>
+                    <div class="info-item">
+                        <i class="bi bi-hospital-fill"></i>
+                        <span>${newData.poli}</span>
+                    </div>
+                `;
+            } else {
+                numberEl.textContent = '-';
+                numberEl.className = `queue-number ${type === 'racikan' ? 'racikan' : ''} empty`;
+                
+                infoEl.innerHTML = `
+                    <div class="info-item empty">
+                        <i class="bi bi-hourglass-split"></i>
+                        <span>Menunggu Panggilan</span>
+                    </div>
+                `;
+            }
+            
+            // Fade in
+            numberEl.style.opacity = '1';
+            numberEl.style.transform = 'scale(1)';
+        }, 300);
     }
+    
+    currentData[type] = newData;
 }
 
+function fetchData() {
+    const indicator = document.getElementById('updateIndicator');
+    
+    // Show update indicator briefly
+    indicator.classList.add('show');
+    
+    fetch('api_farmasi_display.php')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                updateDisplay(data, 'nonRacikan');
+                updateDisplay(data, 'racikan');
+            }
+            
+            // Hide indicator
+            setTimeout(() => {
+                indicator.classList.remove('show');
+            }, 1000);
+        })
+        .catch(error => {
+            console.error('Error fetching data:', error);
+            indicator.classList.remove('show');
+        });
+}
+
+// Initial load
+fetchData();
+
+// Auto update every 3 seconds
+let updateInterval = setInterval(fetchData, 3000);
+
+// Pause when tab is not visible
 document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
-        stopRefresh();
+        clearInterval(updateInterval);
     } else {
-        startRefresh();
+        fetchData(); // Immediate update when tab becomes visible
+        updateInterval = setInterval(fetchData, 3000);
     }
 });
 
-// Start initial refresh
-if (!document.hidden) {
-    startRefresh();
-}
-
-// === Smooth fade in on load ===
+// ========================================
+// SMOOTH PAGE LOAD
+// ========================================
 window.addEventListener('load', () => {
-    document.body.style.opacity = '0';
-    document.body.style.transition = 'opacity 0.3s ease';
-    setTimeout(() => {
-        document.body.style.opacity = '1';
-    }, 100);
+    document.body.style.opacity = '1';
 });
 </script>
 
