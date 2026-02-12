@@ -97,19 +97,27 @@ Aplikasi ini **GRATIS untuk digunakan** dan **TIDAK BOLEH DIPERJUALBELIKAN** dal
 - Mengomersialkan aplikasi tanpa persetujuan tertulis
 
 
-Hak cipta © 2026  
-Pengembang: **Muhammad Wira Satria Buana**
+---
+
+## © Hak Cipta
+© 2026  
+**Muhammad Wira Satria Buana**  
+Seluruh hak cipta dilindungi.
 
 ---
 
+## 📞 Kontak & Dukungan
 
-## Kontak & Dukungan
+Jika Anda memiliki pertanyaan, saran, atau ingin mendukung pengembangan **MediFix**, silakan hubungi melalui:
 
-Jika ada pertanyaan, saran, atau ingin mendukung pengembangan MediFix, silakan hubungi melalui:
+### 💝 Donasi / Dukungan Finansial
+- **Bank BSI**: `7134197557`  
+  a.n. **M. Wira Satria Buana**
 
-Donasi / Dukungan Finansial:
-Bank BSI: 7134197557 a.n. M. Wira Satria Buana
-Email: wiramuhammad16@gmail.com
-Tlp/WA: 0821 7784 6209
+### 📧 Kontak
+- **Email**: wiramuhammad16@gmail.com  
+- **Telepon / WhatsApp**: 0821-7784-6209
 
-Terima kasih atas dukungan dan kontribusinya! 🙏
+---
+
+🙏 Terima kasih atas dukungan dan kontribusi Anda dalam pengembangan **MediFix**.
