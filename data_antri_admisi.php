@@ -64,710 +64,149 @@ try {
 } catch (PDOException $e) {
     die("Gagal mengambil data antrian: " . $e->getMessage());
 }
-?>
-<!doctype html>
-<html lang="id">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Antrian Admisi - MediFix</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<style>
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
+
+// Set page title dan extra CSS
+$page_title = 'Data Antrian Admisi - MediFix';
+$extra_css = '
+/* Welcome Box - SAMA seperti dashboard.php */
+.welcome-box {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 5px;
+  padding: 25px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
 }
 
-:root {
-    --primary: #0ea5e9;
-    --secondary: #06b6d4;
-    --success: #10b981;
-    --danger: #ef4444;
-    --warning: #f59e0b;
-    --dark: #1e293b;
+.welcome-box h3 {
+  margin: 0 0 10px 0;
+  font-size: 24px;
+  font-weight: 700;
 }
 
-body {
-    font-family: 'Inter', sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    min-height: 100vh;
-    overflow-x: hidden;
-    padding-bottom: 60px;
+.welcome-box p {
+  margin: 0;
+  opacity: 0.9;
+  font-size: 14px;
 }
 
-/* Top Bar */
-.top-bar {
-    background: rgba(255, 255, 255, 0.98);
-    backdrop-filter: blur(20px);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-    padding: 10px 0;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+.welcome-box .date-time {
+  margin-top: 10px;
+  font-size: 13px;
+  opacity: 0.8;
 }
 
-.brand {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 16px;
-    font-weight: 800;
-    color: var(--dark);
-}
-
-.brand-icon {
-    width: 32px;
-    height: 32px;
-    background: linear-gradient(135deg, var(--primary), var(--secondary));
-    border-radius: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-size: 16px;
-}
-
-.top-bar-right {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.live-clock {
-    background: linear-gradient(135deg, var(--primary), var(--secondary));
-    color: white;
-    padding: 6px 12px;
-    border-radius: 6px;
-    font-weight: 700;
-    font-size: 11px;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.user-badge {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    background: white;
-    padding: 4px 4px 4px 10px;
-    border-radius: 50px;
-    border: 2px solid #e2e8f0;
-    font-weight: 600;
-    color: var(--dark);
-    font-size: 11px;
-}
-
-.user-avatar {
-    width: 24px;
-    height: 24px;
-    background: linear-gradient(135deg, var(--primary), var(--secondary));
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-size: 11px;
-}
-
-.btn-back {
-    background: linear-gradient(135deg, #64748b, #475569);
-    color: white;
-    border: none;
-    padding: 6px 12px;
-    border-radius: 6px;
-    font-weight: 600;
-    font-size: 11px;
-    transition: all 0.3s ease;
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.btn-back:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(100, 116, 139, 0.4);
-    color: white;
-}
-
-/* Container */
-.container-fluid {
-    max-width: 1800px;
-    margin: 0 auto;
-}
-
-.content-container {
-    background: white;
-    border-radius: 8px;
-    padding: 20px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-    margin-top: 15px;
-    border: 1px solid rgba(0, 0, 0, 0.05);
-}
-
-/* Page Header */
-.page-title {
-    font-size: 18px;
-    font-weight: 800;
-    color: var(--dark);
-    margin-bottom: 4px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.page-title i {
-    font-size: 20px;
-    color: var(--primary);
-}
-
-.page-subtitle {
-    color: #64748b;
-    font-size: 11px;
-    margin-bottom: 15px;
-}
-
-/* Stats Container */
-.stats-container {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 12px;
-    margin-bottom: 15px;
+/* Stats Cards - Style seperti menu cards */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+  margin-bottom: 20px;
 }
 
 .stat-card {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 6px;
-    padding: 12px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
+  background: #fff;
+  border-radius: 5px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+  transition: all 0.3s ease;
+  border-top: 3px solid;
+  overflow: hidden;
+}
+
+.stat-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
+.stat-card-content {
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
 }
 
 .stat-icon {
-    width: 36px;
-    height: 36px;
-    border-radius: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 16px;
-    flex-shrink: 0;
-}
-
-.stat-icon.total {
-    background: linear-gradient(135deg, #3b82f6, #2563eb);
-    color: white;
-}
-
-.stat-icon.menunggu {
-    background: linear-gradient(135deg, #f59e0b, #d97706);
-    color: white;
-}
-
-.stat-icon.dipanggil {
-    background: linear-gradient(135deg, #06b6d4, #0891b2);
-    color: white;
-}
-
-.stat-icon.selesai {
-    background: linear-gradient(135deg, #10b981, #059669);
-    color: white;
+  width: 60px;
+  height: 60px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  color: white;
 }
 
 .stat-info {
-    flex: 1;
+  flex: 1;
 }
 
 .stat-label {
-    font-size: 10px;
-    color: #64748b;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-    margin-bottom: 2px;
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 5px;
 }
 
 .stat-value {
-    font-size: 20px;
-    font-weight: 800;
-    color: var(--dark);
+  font-size: 28px;
+  font-weight: 700;
+  color: #333;
 }
 
-/* Table */
-.table-wrapper {
-    border-radius: 6px;
-    overflow: hidden;
-    border: 1px solid #e2e8f0;
-    margin-bottom: 15px;
+/* Color variations */
+.stat-total {
+  border-top-color: #3c8dbc;
+}
+.stat-total .stat-icon {
+  background: #3c8dbc;
 }
 
-.table {
-    margin-bottom: 0;
-    font-size: 11px;
+.stat-menunggu {
+  border-top-color: #f39c12;
+}
+.stat-menunggu .stat-icon {
+  background: #f39c12;
 }
 
-.table thead th {
-    background: linear-gradient(135deg, #1e293b, #334155);
-    color: white;
-    font-weight: 700;
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-    padding: 10px 8px;
-    border: none;
-    white-space: nowrap;
+.stat-dipanggil {
+  border-top-color: #00c0ef;
+}
+.stat-dipanggil .stat-icon {
+  background: #00c0ef;
 }
 
-.table tbody td {
-    padding: 8px;
-    vertical-align: middle;
-    font-size: 11px;
-    color: #1e293b;
-    border-bottom: 1px solid #f1f5f9;
+.stat-selesai {
+  border-top-color: #00a65a;
+}
+.stat-selesai .stat-icon {
+  background: #00a65a;
 }
 
-.table tbody tr:hover {
-    background: #f8fafc;
+@media (max-width: 992px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
-.table tbody tr:last-child td {
-    border-bottom: none;
+@media (max-width: 576px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
 }
+';
 
-/* Badges */
-.badge-status {
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-weight: 700;
-    font-size: 9px;
-    display: inline-block;
-    text-transform: uppercase;
-}
-
-.badge-menunggu {
-    background: #fef3c7;
-    color: #92400e;
-}
-
-.badge-dipanggil {
-    background: #dbeafe;
-    color: #1e40af;
-}
-
-.badge-selesai {
-    background: #d1fae5;
-    color: #065f46;
-}
-
-.badge-loket {
-    background: linear-gradient(135deg, var(--secondary), #0891b2);
-    color: white;
-    padding: 4px 10px;
-    border-radius: 4px;
-    font-weight: 700;
-    font-size: 10px;
-}
-
-/* Form Elements */
-.form-select-sm {
-    font-size: 11px;
-    padding: 4px 8px;
-    border: 1px solid #e2e8f0;
-    border-radius: 4px;
-    font-weight: 600;
-}
-
-.form-control-sm {
-    font-size: 11px;
-    padding: 4px 8px;
-    border: 1px solid #e2e8f0;
-    border-radius: 4px;
-    font-weight: 500;
-}
-
-.form-control-sm:focus {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.1);
-}
-
-/* Buttons */
-.btn-action {
-    padding: 5px 12px;
-    border-radius: 4px;
-    border: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-weight: 700;
-    font-size: 10px;
-    transition: all 0.3s ease;
-    cursor: pointer;
-    text-transform: uppercase;
-}
-
-.btn-call {
-    background: linear-gradient(135deg, #f59e0b, #d97706);
-    color: white;
-}
-
-.btn-call:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(245, 158, 11, 0.3);
-}
-
-.btn-save {
-    background: linear-gradient(135deg, #10b981, #059669);
-    color: white;
-}
-
-.btn-save:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);
-}
-
-.btn-recall {
-    background: linear-gradient(135deg, #06b6d4, #0891b2);
-    color: white;
-}
-
-.btn-recall:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(6, 182, 212, 0.3);
-}
-
-.btn-done {
-    background: #e2e8f0;
-    color: #64748b;
-}
-
-.btn-action:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    transform: none;
-}
-
-/* Action Group */
-.action-group {
-    display: flex;
-    gap: 6px;
-    align-items: center;
-    justify-content: center;
-}
-
-/* Pagination */
-.pagination-container {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px;
-    background: #f8fafc;
-    border-radius: 6px;
-}
-
-.pagination-info {
-    color: #64748b;
-    font-size: 11px;
-    font-weight: 600;
-}
-
-.pagination {
-    display: flex;
-    gap: 4px;
-    margin: 0;
-}
-
-.page-link {
-    border: 1px solid #e2e8f0;
-    color: var(--dark);
-    padding: 6px 10px;
-    border-radius: 4px;
-    font-weight: 600;
-    font-size: 11px;
-    transition: all 0.3s ease;
-    text-decoration: none;
-}
-
-.page-link:hover {
-    background: #f8fafc;
-    border-color: var(--primary);
-    color: var(--primary);
-}
-
-.page-item.active .page-link {
-    background: linear-gradient(135deg, var(--primary), var(--secondary));
-    border-color: var(--primary);
-    color: white;
-}
-
-.page-item.disabled .page-link {
-    opacity: 0.5;
-    cursor: not-allowed;
-    pointer-events: none;
-}
-
-/* Empty State */
-.empty-state {
-    text-align: center;
-    padding: 40px 20px;
-}
-
-.empty-icon {
-    width: 60px;
-    height: 60px;
-    background: #f1f5f9;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0 auto 12px;
-}
-
-.empty-icon i {
-    font-size: 28px;
-    color: #cbd5e1;
-}
-
-.empty-title {
-    font-size: 14px;
-    font-weight: 700;
-    color: var(--dark);
-    margin-bottom: 4px;
-}
-
-.empty-text {
-    color: #64748b;
-    font-size: 11px;
-}
-
-/* Responsive */
-@media (max-width: 1200px) {
-    .stats-container {
-        grid-template-columns: repeat(2, 1fr);
-    }
-}
-
-@media (max-width: 768px) {
-    .stats-container {
-        grid-template-columns: 1fr;
-    }
-    
-    .table-wrapper {
-        overflow-x: auto;
-    }
-    
-    .pagination-container {
-        flex-direction: column;
-        gap: 10px;
-    }
-}
-</style>
-</head>
-<body>
-
-<div class="top-bar">
-    <div class="container-fluid px-4">
-        <div class="d-flex align-items-center justify-content-between">
-            <div class="brand">
-                <div class="brand-icon"><i class="bi bi-person-vcard-fill"></i></div>
-                <span>Antrian Admisi</span>
-            </div>
-            <div class="top-bar-right">
-                <div class="live-clock"><i class="bi bi-clock-fill"></i><span id="clockDisplay"></span></div>
-                <div class="user-badge">
-                    <span><?= htmlspecialchars($nama) ?></span>
-                    <div class="user-avatar"><i class="bi bi-person-fill"></i></div>
-                </div>
-                <a href="admisi_dashboard.php" class="btn-back"><i class="bi bi-arrow-left-circle-fill"></i>Kembali</a>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="container-fluid px-4">
-    <div class="content-container">
-        <div class="page-title">
-            <i class="bi bi-clipboard-data"></i>
-            Data Antrian Admisi
-        </div>
-        <div class="page-subtitle">
-            <?= date('l, d F Y') ?> • Menampilkan <?= count($antrian) ?> dari <?= $total ?> antrian
-        </div>
-        
-        <div class="stats-container">
-            <div class="stat-card">
-                <div class="stat-icon total"><i class="bi bi-list-ol"></i></div>
-                <div class="stat-info">
-                    <div class="stat-label">Total</div>
-                    <div class="stat-value"><?= $total ?></div>
-                </div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon menunggu"><i class="bi bi-hourglass-split"></i></div>
-                <div class="stat-info">
-                    <div class="stat-label">Menunggu</div>
-                    <div class="stat-value"><?= $menunggu ?></div>
-                </div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon dipanggil"><i class="bi bi-megaphone"></i></div>
-                <div class="stat-info">
-                    <div class="stat-label">Dipanggil</div>
-                    <div class="stat-value"><?= $dipanggil ?></div>
-                </div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon selesai"><i class="bi bi-check-circle"></i></div>
-                <div class="stat-info">
-                    <div class="stat-label">Selesai</div>
-                    <div class="stat-value"><?= $selesai ?></div>
-                </div>
-            </div>
-        </div>
-        
-        <?php if ($total > 0): ?>
-        <div class="table-wrapper">
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th width="30">No</th>
-                        <th width="80">No. Antrian</th>
-                        <th width="100">No. RM</th>
-                        <th width="80">Status</th>
-                        <th width="120">Waktu Ambil</th>
-                        <th width="100">Waktu Panggil</th>
-                        <th width="120">Loket</th>
-                        <th>Aksi</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php 
-                    $no = $offset + 1; 
-                    foreach ($antrian as $row): 
-                        $statusClass = ['Menunggu'=>'menunggu','Dipanggil'=>'dipanggil','Selesai'=>'selesai'][$row['status']] ?? '';
-                    ?>
-                    <tr data-id="<?= $row['id']; ?>">
-                        <td class="text-center fw-bold" style="color: #64748b;"><?= $no++; ?></td>
-                        <td class="text-center">
-                            <span class="fw-bold" style="color: #0ea5e9; font-size: 12px;">
-                                <?= htmlspecialchars($row['nomor']); ?>
-                            </span>
-                        </td>
-                        <td class="text-center no-rm-cell" data-rm="<?= htmlspecialchars($row['no_rkm_medis'] ?? '') ?>">
-                            <span class="fw-bold" style="font-size: 11px;">
-                                <?= !empty($row['no_rkm_medis']) ? htmlspecialchars($row['no_rkm_medis']) : '-' ?>
-                            </span>
-                        </td>
-                        <td class="text-center">
-                            <span class="badge-status badge-<?= $statusClass ?>">
-                                <?= htmlspecialchars($row['status']); ?>
-                            </span>
-                        </td>
-                        <td class="text-center" style="font-size: 10px;">
-                            <?= date('d-m-Y H:i', strtotime($row['created_at'])); ?>
-                        </td>
-                        <td class="text-center" style="font-size: 10px;">
-                            <?= $row['waktu_panggil'] ? date('H:i:s', strtotime($row['waktu_panggil'])) : '-'; ?>
-                        </td>
-                        <td class="text-center">
-                            <?php if (!empty($row['nama_loket'])): ?>
-                                <span class="badge-loket"><?= htmlspecialchars($row['nama_loket']); ?></span>
-                            <?php else: ?>
-                                <select id="loket<?= $row['id']; ?>" class="form-select form-select-sm">
-                                    <?php foreach ($daftar_loket as $l): ?>
-                                        <option value="<?= $l['id']; ?>"><?= htmlspecialchars($l['nama_loket']); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            <?php endif; ?>
-                        </td>
-                        <td>
-                            <?php if ($row['status'] == 'Menunggu'): ?>
-                                <div class="action-group">
-                                    <button class="btn-action btn-call" id="btn<?= $row['id']; ?>" 
-                                            onclick="panggilAntrian('<?= $row['id']; ?>','<?= $row['nomor']; ?>')">
-                                        <i class="bi bi-megaphone-fill"></i> Panggil
-                                    </button>
-                                </div>
-                            <?php elseif ($row['status'] == 'Dipanggil'): ?>
-                                <div class="action-group">
-                                    <input type="text" id="rm<?= $row['id']; ?>" class="form-control form-control-sm" 
-                                           maxlength="15" placeholder="No. RM" 
-                                           value="<?= htmlspecialchars($row['no_rkm_medis'] ?? '') ?>" 
-                                           style="width: 90px;">
-                                    <button class="btn-action btn-save" id="btnSave<?= $row['id']; ?>" 
-                                            onclick="simpanRM('<?= $row['id']; ?>')">
-                                        <i class="bi bi-check2"></i> Simpan
-                                    </button>
-                                    <button class="btn-action btn-recall" id="btnRecall<?= $row['id']; ?>" 
-                                            onclick="panggilUlang('<?= $row['id']; ?>','<?= $row['nomor']; ?>','<?= $row['loket_id']; ?>')">
-                                        <i class="bi bi-repeat"></i> Ulang
-                                    </button>
-                                </div>
-                            <?php else: ?>
-                                <button class="btn-action btn-done" disabled>
-                                    <i class="bi bi-check2-circle"></i> Selesai
-                                </button>
-                            <?php endif; ?>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-
-        <?php if ($total_pages > 1): ?>
-        <div class="pagination-container">
-            <div class="pagination-info">
-                Halaman <?= $page ?> dari <?= $total_pages ?> (Total: <?= $total ?> antrian)
-            </div>
-            <ul class="pagination">
-                <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
-                    <a class="page-link" href="?page=<?= $page - 1 ?>">
-                        <i class="bi bi-chevron-left"></i> Prev
-                    </a>
-                </li>
-                <?php for ($i = 1; $i <= $total_pages; $i++): ?>
-                    <li class="page-item <?= ($i == $page) ? 'active' : '' ?>">
-                        <a class="page-link" href="?page=<?= $i ?>"><?= $i ?></a>
-                    </li>
-                <?php endfor; ?>
-                <li class="page-item <?= ($page >= $total_pages) ? 'disabled' : '' ?>">
-                    <a class="page-link" href="?page=<?= $page + 1 ?>">
-                        Next <i class="bi bi-chevron-right"></i>
-                    </a>
-                </li>
-            </ul>
-        </div>
-        <?php endif; ?>
-
-        <?php else: ?>
-        <div class="empty-state">
-            <div class="empty-icon"><i class="bi bi-inbox"></i></div>
-            <div class="empty-title">Belum Ada Antrian</div>
-            <div class="empty-text">Tidak ada antrian admisi untuk hari ini</div>
-        </div>
-        <?php endif; ?>
-    </div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-const SOUND_BASE_PATH = './sound/';
+$extra_js = '
+const SOUND_BASE_PATH = "./sound/";
 
 function updateClock() {
     const now = new Date();
-    document.getElementById('clockDisplay').textContent = now.toLocaleTimeString('id-ID', { 
-        hour: '2-digit', 
-        minute: '2-digit', 
-        second: '2-digit' 
-    });
+    const options = { weekday: "long", year: "numeric", month: "long", day: "numeric" };
+    const tanggal = now.toLocaleDateString("id-ID", options);
+    const waktu = now.toLocaleTimeString("id-ID");
+    
+    document.getElementById("tanggalSekarang").innerHTML = tanggal;
+    document.getElementById("clockDisplay").innerHTML = waktu;
 }
+
 setInterval(updateClock, 1000);
 updateClock();
 
@@ -777,15 +216,13 @@ function playSequentialSounds(files, callback) {
         return;
     }
     const audio = new Audio(SOUND_BASE_PATH + files[0]);
-    audio.playbackRate = files[0].includes('opening') ? 1.0 : 1.35;
-    audio.play().catch(e => console.error('Play error:', e));
+    audio.playbackRate = files[0].includes("opening") ? 1.0 : 1.35;
+    audio.play().catch(e => console.error("Play error:", e));
     audio.onended = () => setTimeout(() => playSequentialSounds(files.slice(1), callback), 80);
 }
 
 function numberToSoundFiles(num) {
     const files = [];
-    // PERBAIKAN: Ubah dari if (num < 12) menjadi if (num < 11)
-    // Sehingga angka 11 akan masuk ke kondisi khusus "sebelas"
     if (num < 11) {
         files.push(`${numberToWords(num)}.mp3`);
     } else if (num < 20) {
@@ -821,16 +258,16 @@ function numberToWords(num) {
 }
 
 function cekRMSebelumnya(currentId) {
-    const rows = Array.from(document.querySelectorAll('table tbody tr'));
+    const rows = Array.from(document.querySelectorAll("table tbody tr"));
     for (const row of rows) {
-        const rowId = row.getAttribute('data-id');
+        const rowId = row.getAttribute("data-id");
         if (rowId === currentId) break;
         
-        const noRmCell = row.querySelector('.no-rm-cell');
+        const noRmCell = row.querySelector(".no-rm-cell");
         if (noRmCell) {
-            const rm = (noRmCell.getAttribute('data-rm') || '').trim();
-            if (rm === '' || rm === '-') {
-                alert('⚠️ Harap isi No. RM antrian sebelumnya terlebih dahulu!');
+            const rm = (noRmCell.getAttribute("data-rm") || "").trim();
+            if (rm === "" || rm === "-") {
+                alert("⚠️ Harap isi No. RM antrian sebelumnya terlebih dahulu!");
                 return false;
             }
         }
@@ -841,130 +278,320 @@ function cekRMSebelumnya(currentId) {
 function panggilAntrian(id, nomor) {
     if (!cekRMSebelumnya(id)) return;
     
-    const btn = document.getElementById('btn' + id);
+    const btn = document.getElementById("btn" + id);
     if (btn) {
         btn.disabled = true;
-        btn.innerHTML = '<i class="bi bi-volume-up-fill"></i> Memanggil...';
+        btn.innerHTML = "<i class=\"fa fa-volume-up\"></i> Memanggil...";
     }
 
-    const loketEl = document.getElementById('loket' + id);
-    const loket = loketEl ? loketEl.value : '';
+    const loketEl = document.getElementById("loket" + id);
+    const loket = loketEl ? loketEl.value : "";
 
-    fetch('panggil_antrian.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    fetch("panggil_antrian.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: `id=${encodeURIComponent(id)}&loket_id=${encodeURIComponent(loket)}&ulang=0`
     })
     .then(res => res.text())
     .then(() => {
         const huruf = nomor.substring(0, 1).toUpperCase();
         const angka = parseInt(nomor.substring(1));
-        const files = ['opening.mp3', 'nomor antrian.mp3', `${huruf}.mp3`];
+        const files = ["opening.mp3", "nomor antrian.mp3", `${huruf}.mp3`];
         files.push(...numberToSoundFiles(angka));
-        files.push('silahkan menuju loket.mp3');
+        files.push("silahkan menuju loket.mp3");
         if (loket && !isNaN(parseInt(loket))) {
             files.push(...numberToSoundFiles(parseInt(loket)));
         }
-        console.log('🔊 Playing:', files);
+        console.log("🔊 Playing:", files);
         playSequentialSounds(files, () => setTimeout(() => location.reload(), 500));
     })
     .catch(err => {
-        console.error('❌ Error:', err);
+        console.error("❌ Error:", err);
         if (btn) {
             btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-megaphone-fill"></i> Panggil';
+            btn.innerHTML = "<i class=\"fa fa-phone\"></i> Panggil";
         }
     });
 }
 
 function simpanRM(id) {
-    const rmInput = document.getElementById('rm' + id);
-    const rm = rmInput ? rmInput.value.trim() : '';
+    const rmInput = document.getElementById("rm" + id);
+    const rm = rmInput ? rmInput.value.trim() : "";
     
-    if (rm === '') {
-        alert('⚠️ No. RM tidak boleh kosong!');
+    if (rm === "") {
+        alert("⚠️ No. RM tidak boleh kosong!");
         return;
     }
 
-    const btnSave = document.getElementById('btnSave' + id);
+    const btnSave = document.getElementById("btnSave" + id);
     if (btnSave) {
         btnSave.disabled = true;
-        btnSave.innerHTML = '<i class="bi bi-hourglass-split"></i> Simpan...';
+        btnSave.innerHTML = "<i class=\"fa fa-spinner fa-spin\"></i> Simpan...";
     }
 
-    fetch('simpan_rm.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    fetch("simpan_rm.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: `id=${encodeURIComponent(id)}&rm=${encodeURIComponent(rm)}`
     })
     .then(res => res.text())
     .then(() => {
-        alert('✅ No. RM berhasil disimpan!');
+        alert("✅ No. RM berhasil disimpan!");
         location.reload();
     })
     .catch(err => {
-        console.error('❌ Error:', err);
-        alert('❌ Gagal menyimpan No. RM!');
+        console.error("❌ Error:", err);
+        alert("❌ Gagal menyimpan No. RM!");
         if (btnSave) {
             btnSave.disabled = false;
-            btnSave.innerHTML = '<i class="bi bi-check2"></i> Simpan';
+            btnSave.innerHTML = "<i class=\"fa fa-check\"></i> Simpan";
         }
     });
 }
 
 function panggilUlang(id, nomor, loket) {
-    const btn = document.getElementById('btnRecall' + id);
+    const btn = document.getElementById("btnRecall" + id);
     if (btn) {
         btn.disabled = true;
-        btn.innerHTML = '<i class="bi bi-volume-up-fill"></i> Memanggil...';
+        btn.innerHTML = "<i class=\"fa fa-volume-up\"></i> Memanggil...";
     }
 
-    fetch('panggil_antrian.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    fetch("panggil_antrian.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: `id=${encodeURIComponent(id)}&loket_id=${encodeURIComponent(loket)}&ulang=1`
     })
     .then(res => res.text())
     .then(() => {
         const huruf = nomor.substring(0, 1).toUpperCase();
         const angka = parseInt(nomor.substring(1));
-        const files = ['opening.mp3', 'nomor antrian.mp3', `${huruf}.mp3`];
+        const files = ["opening.mp3", "nomor antrian.mp3", `${huruf}.mp3`];
         files.push(...numberToSoundFiles(angka));
-        files.push('silahkan menuju loket.mp3');
+        files.push("silahkan menuju loket.mp3");
         if (loket && !isNaN(parseInt(loket))) {
             files.push(...numberToSoundFiles(parseInt(loket)));
         }
-        console.log('🔊 Playing:', files);
+        console.log("🔊 Playing:", files);
         playSequentialSounds(files, () => {
             if (btn) {
                 btn.disabled = false;
-                btn.innerHTML = '<i class="bi bi-repeat"></i> Ulang';
+                btn.innerHTML = "<i class=\"fa fa-repeat\"></i> Ulang";
             }
         });
     })
     .catch(err => {
-        console.error('❌ Error:', err);
+        console.error("❌ Error:", err);
         if (btn) {
             btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-repeat"></i> Ulang';
+            btn.innerHTML = "<i class=\"fa fa-repeat\"></i> Ulang";
         }
     });
 }
+';
 
-// Silent test
-window.addEventListener('load', () => {
-    console.log('🔍 Sound System Check');
-    console.log('📍 Path:', SOUND_BASE_PATH);
-    const testAudio = new Audio(SOUND_BASE_PATH + 'opening.mp3');
-    testAudio.play()
-        .then(() => {
-            console.log('✅ Sound system OK');
-            testAudio.pause();
-        })
-        .catch(() => {
-            console.log('⚠️ Autoplay blocked (normal)');
-        });
-});
-</script>
-</body>
-</html>
+// Include header
+include 'includes/header.php';
+
+// Include sidebar
+include 'includes/sidebar.php';
+?>
+
+  <div class="content-wrapper">
+    <section class="content-header">
+      <h1>Data Antrian Admisi</h1>
+      <ol class="breadcrumb">
+        <li><a href="dashboard.php"><i class="fa fa-dashboard"></i> Home</a></li>
+        <li><a href="#">Admisi</a></li>
+        <li class="active">Data Antrian</li>
+      </ol>
+    </section>
+
+    <section class="content">
+      
+     
+
+      <!-- Stats Cards -->
+      <div class="stats-grid">
+        <div class="stat-card stat-total">
+          <div class="stat-card-content">
+            <div class="stat-icon">
+              <i class="fa fa-list-ol"></i>
+            </div>
+            <div class="stat-info">
+              <div class="stat-label">Total Antrian</div>
+              <div class="stat-value"><?= $total ?></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="stat-card stat-menunggu">
+          <div class="stat-card-content">
+            <div class="stat-icon">
+              <i class="fa fa-hourglass-half"></i>
+            </div>
+            <div class="stat-info">
+              <div class="stat-label">Menunggu</div>
+              <div class="stat-value"><?= $menunggu ?></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="stat-card stat-dipanggil">
+          <div class="stat-card-content">
+            <div class="stat-icon">
+              <i class="fa fa-phone"></i>
+            </div>
+            <div class="stat-info">
+              <div class="stat-label">Dipanggil</div>
+              <div class="stat-value"><?= $dipanggil ?></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="stat-card stat-selesai">
+          <div class="stat-card-content">
+            <div class="stat-icon">
+              <i class="fa fa-check-circle"></i>
+            </div>
+            <div class="stat-info">
+              <div class="stat-label">Selesai</div>
+              <div class="stat-value"><?= $selesai ?></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Table Section -->
+      <div class="row">
+        <div class="col-xs-12">
+          <div class="box">
+            <div class="box-header">
+              <h3 class="box-title">Daftar Antrian (<?= count($antrian) ?> dari <?= $total ?>)</h3>
+            </div>
+            <div class="box-body">
+              
+              <?php if ($total > 0): ?>
+              <div class="table-responsive">
+                <table class="table table-bordered table-striped table-hover">
+                  <thead style="background: #3c8dbc; color: white;">
+                    <tr>
+                      <th width="30">No</th>
+                      <th width="80">No. Antrian</th>
+                      <th width="100">No. RM</th>
+                      <th width="80">Status</th>
+                      <th width="120">Waktu Ambil</th>
+                      <th width="100">Waktu Panggil</th>
+                      <th width="120">Loket</th>
+                      <th>Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <?php 
+                    $no = $offset + 1; 
+                    foreach ($antrian as $row): 
+                        $statusClass = ['Menunggu'=>'warning','Dipanggil'=>'info','Selesai'=>'success'][$row['status']] ?? 'default';
+                    ?>
+                    <tr data-id="<?= $row['id']; ?>">
+                      <td class="text-center"><?= $no++; ?></td>
+                      <td class="text-center">
+                        <strong style="color: #3c8dbc; font-size: 13px;">
+                          <?= htmlspecialchars($row['nomor']); ?>
+                        </strong>
+                      </td>
+                      <td class="text-center no-rm-cell" data-rm="<?= htmlspecialchars($row['no_rkm_medis'] ?? '') ?>">
+                        <strong>
+                          <?= !empty($row['no_rkm_medis']) ? htmlspecialchars($row['no_rkm_medis']) : '-' ?>
+                        </strong>
+                      </td>
+                      <td class="text-center">
+                        <span class="label label-<?= $statusClass ?>">
+                          <?= htmlspecialchars($row['status']); ?>
+                        </span>
+                      </td>
+                      <td class="text-center" style="font-size: 11px;">
+                        <?= date('d-m-Y H:i', strtotime($row['created_at'])); ?>
+                      </td>
+                      <td class="text-center" style="font-size: 11px;">
+                        <?= $row['waktu_panggil'] ? date('H:i:s', strtotime($row['waktu_panggil'])) : '-'; ?>
+                      </td>
+                      <td class="text-center">
+                        <?php if (!empty($row['nama_loket'])): ?>
+                          <span class="label label-primary"><?= htmlspecialchars($row['nama_loket']); ?></span>
+                        <?php else: ?>
+                          <select id="loket<?= $row['id']; ?>" class="form-control input-sm">
+                            <?php foreach ($daftar_loket as $l): ?>
+                              <option value="<?= $l['id']; ?>"><?= htmlspecialchars($l['nama_loket']); ?></option>
+                            <?php endforeach; ?>
+                          </select>
+                        <?php endif; ?>
+                      </td>
+                      <td class="text-center">
+                        <?php if ($row['status'] == 'Menunggu'): ?>
+                          <button class="btn btn-warning btn-sm" id="btn<?= $row['id']; ?>" 
+                                  onclick="panggilAntrian('<?= $row['id']; ?>','<?= $row['nomor']; ?>')">
+                            <i class="fa fa-phone"></i> Panggil
+                          </button>
+                        <?php elseif ($row['status'] == 'Dipanggil'): ?>
+                          <div class="btn-group">
+                            <input type="text" id="rm<?= $row['id']; ?>" class="form-control input-sm" 
+                                   maxlength="15" placeholder="No. RM" 
+                                   value="<?= htmlspecialchars($row['no_rkm_medis'] ?? '') ?>" 
+                                   style="width: 90px; display: inline-block; margin-right: 5px;">
+                            <button class="btn btn-success btn-sm" id="btnSave<?= $row['id']; ?>" 
+                                    onclick="simpanRM('<?= $row['id']; ?>')">
+                              <i class="fa fa-check"></i> Simpan
+                            </button>
+                            <button class="btn btn-info btn-sm" id="btnRecall<?= $row['id']; ?>" 
+                                    onclick="panggilUlang('<?= $row['id']; ?>','<?= $row['nomor']; ?>','<?= $row['loket_id']; ?>')">
+                              <i class="fa fa-repeat"></i> Ulang
+                            </button>
+                          </div>
+                        <?php else: ?>
+                          <button class="btn btn-default btn-sm" disabled>
+                            <i class="fa fa-check-circle"></i> Selesai
+                          </button>
+                        <?php endif; ?>
+                      </td>
+                    </tr>
+                    <?php endforeach; ?>
+                  </tbody>
+                </table>
+              </div>
+
+              <?php if ($total_pages > 1): ?>
+              <div class="box-footer clearfix">
+                <ul class="pagination pagination-sm no-margin pull-right">
+                  <li <?= ($page <= 1) ? 'class="disabled"' : '' ?>>
+                    <a href="?page=<?= $page - 1 ?>">«</a>
+                  </li>
+                  <?php for ($i = 1; $i <= $total_pages; $i++): ?>
+                    <li <?= ($i == $page) ? 'class="active"' : '' ?>>
+                      <a href="?page=<?= $i ?>"><?= $i ?></a>
+                    </li>
+                  <?php endfor; ?>
+                  <li <?= ($page >= $total_pages) ? 'class="disabled"' : '' ?>>
+                    <a href="?page=<?= $page + 1 ?>">»</a>
+                  </li>
+                </ul>
+              </div>
+              <?php endif; ?>
+
+              <?php else: ?>
+              <div class="callout callout-info">
+                <h4><i class="fa fa-info"></i> Informasi</h4>
+                <p>Belum ada antrian admisi untuk hari ini</p>
+              </div>
+              <?php endif; ?>
+              
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+  </div>
+
+<?php
+// Include footer
+include 'includes/footer.php';
+?>

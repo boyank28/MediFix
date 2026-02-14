@@ -8,7 +8,6 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $nama = $_SESSION['nama'] ?? 'Pengguna';
-date_default_timezone_set('Asia/Jakarta');
 
 // Ambil data
 $menus = $pdo->query("SELECT * FROM menu_list ORDER BY id")->fetchAll(PDO::FETCH_ASSOC);
@@ -17,29 +16,35 @@ $users = $pdo->query("SELECT * FROM users ORDER BY id ASC")->fetchAll(PDO::FETCH
 // User yg dipilih
 $selectedUser = $_GET['user_id'] ?? $users[0]['id'];
 
+$success = $error = "";
+
 // Simpan akses
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $user_id = $_POST['user_id'];
 
-    $pdo->prepare("DELETE FROM hak_akses WHERE user_id=?")->execute([$user_id]);
+    try {
+        $pdo->prepare("DELETE FROM hak_akses WHERE user_id=?")->execute([$user_id]);
 
-    foreach ($menus as $m) {
-        $izin = isset($_POST['akses'][$m['kode']]) ? 1 : 0;
-        $stmt = $pdo->prepare("INSERT INTO hak_akses (user_id, menu, izin) VALUES (?, ?, ?)");
-        $stmt->execute([$user_id, $m['kode'], $izin]);
-    }
-
-    // Sync session jika edit dirinya sendiri
-    if ($_SESSION['user_id'] == $user_id) {
-        $_SESSION['akses'] = [];
-        $reload = $pdo->prepare("SELECT menu, izin FROM hak_akses WHERE user_id=?");
-        $reload->execute([$user_id]);
-        foreach ($reload->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $_SESSION['akses'][$row['menu']] = $row['izin'];
+        foreach ($menus as $m) {
+            $izin = isset($_POST['akses'][$m['kode']]) ? 1 : 0;
+            $stmt = $pdo->prepare("INSERT INTO hak_akses (user_id, menu, izin) VALUES (?, ?, ?)");
+            $stmt->execute([$user_id, $m['kode'], $izin]);
         }
-    }
 
-    $success = true;
+        // Sync session jika edit dirinya sendiri
+        if ($_SESSION['user_id'] == $user_id) {
+            $_SESSION['akses'] = [];
+            $reload = $pdo->prepare("SELECT menu, izin FROM hak_akses WHERE user_id=?");
+            $reload->execute([$user_id]);
+            foreach ($reload->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                $_SESSION['akses'][$row['menu']] = $row['izin'];
+            }
+        }
+
+        $success = "✔ Hak akses berhasil diperbarui!";
+    } catch (PDOException $e) {
+        $error = "⚠ Gagal menyimpan: " . $e->getMessage();
+    }
 }
 
 // Load akses user terpilih
@@ -58,720 +63,453 @@ foreach($users as $u) {
         break;
     }
 }
-?>
-<!doctype html>
-<html lang="id">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Manajemen Hak Akses - MediFix</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-<style>
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
+
+// Set page title dan extra CSS
+$page_title = 'Manajemen Hak Akses - MediFix';
+$extra_css = '
+/* Welcome Box */
+.welcome-box {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+  border-radius: 5px;
+  padding: 25px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
 }
 
-:root {
-    --primary: #8b5cf6;
-    --primary-dark: #7c3aed;
-    --secondary: #a78bfa;
-    --success: #10b981;
-    --danger: #ef4444;
-    --warning: #f59e0b;
-    --info: #06b6d4;
-    --dark: #1e293b;
-    --light: #f8fafc;
+.welcome-box h3 {
+  margin: 0 0 10px 0;
+  font-size: 24px;
+  font-weight: 700;
 }
 
-body {
-    font-family: 'Inter', sans-serif;
-    background: #f0f4f8;
-    height: 100vh;
-    overflow: hidden;
-    position: relative;
+.welcome-box p {
+  margin: 0;
+  opacity: 0.9;
+  font-size: 14px;
 }
 
-/* Animated Background */
-.bg-animated {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    z-index: 0;
-    overflow: hidden;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+/* User List Card */
+.user-list-card {
+  background: white;
+  border-radius: 5px;
+  padding: 15px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+  max-height: calc(100vh - 300px);
+  overflow-y: auto;
 }
 
-.bg-animated::before,
-.bg-animated::after {
-    content: '';
-    position: absolute;
-    border-radius: 50%;
-    opacity: 0.1;
+.user-list-card::-webkit-scrollbar {
+  width: 6px;
 }
 
-.bg-animated::before {
-    width: 800px;
-    height: 800px;
-    background: radial-gradient(circle, #fff 0%, transparent 70%);
-    top: -400px;
-    right: -400px;
-    animation: pulse 8s ease-in-out infinite;
+.user-list-card::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 10px;
 }
 
-.bg-animated::after {
-    width: 600px;
-    height: 600px;
-    background: radial-gradient(circle, #fff 0%, transparent 70%);
-    bottom: -300px;
-    left: -300px;
-    animation: pulse 10s ease-in-out infinite reverse;
+.user-list-card::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
 }
 
-@keyframes pulse {
-    0%, 100% { transform: scale(1); opacity: 0.1; }
-    50% { transform: scale(1.1); opacity: 0.15; }
+.user-list-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #2d3748;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-/* Top Bar */
-.top-bar {
-    background: rgba(255, 255, 255, 0.98);
-    backdrop-filter: blur(20px);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-    padding: 12px 0;
-    position: relative;
-    z-index: 100;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-}
-
-.brand {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    font-size: 18px;
-    font-weight: 800;
-    color: var(--dark);
-}
-
-.brand-icon {
-    width: 40px;
-    height: 40px;
-    background: linear-gradient(135deg, var(--primary), var(--secondary));
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-size: 20px;
-}
-
-.top-bar-right {
-    display: flex;
-    align-items: center;
-    gap: 20px;
-}
-
-.time-badge {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: linear-gradient(135deg, var(--primary), var(--secondary));
-    color: white;
-    padding: 8px 16px;
-    border-radius: 10px;
-    font-size: 13px;
-    font-weight: 600;
-    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
-}
-
-.user-badge {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    background: white;
-    padding: 6px 6px 6px 14px;
-    border-radius: 50px;
-    border: 2px solid #e2e8f0;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--dark);
-}
-
-.user-avatar-small {
-    width: 32px;
-    height: 32px;
-    background: linear-gradient(135deg, var(--primary), var(--secondary));
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-size: 14px;
-}
-
-/* Main Content */
-.main-content {
-    height: calc(100vh - 130px);
-    overflow-y: auto;
-    position: relative;
-    z-index: 1;
-    padding: 20px 0;
-}
-
-.main-content::-webkit-scrollbar {
-    width: 8px;
-}
-
-.main-content::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-.main-content::-webkit-scrollbar-thumb {
-    background: rgba(148, 163, 184, 0.3);
-    border-radius: 10px;
-}
-
-/* Page Header */
-.page-header {
-    background: white;
-    border-radius: 16px;
-    padding: 20px;
-    margin-bottom: 20px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-    border: 1px solid rgba(0, 0, 0, 0.05);
-    position: relative;
-    overflow: hidden;
-}
-
-.page-header::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 3px;
-    background: linear-gradient(90deg, #f59e0b, #fbbf24, #fcd34d);
-}
-
-.page-title {
-    font-size: 20px;
-    font-weight: 700;
-    color: var(--dark);
-    margin-bottom: 4px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.page-title i {
-    font-size: 24px;
-    background: linear-gradient(135deg, #f59e0b, #fbbf24);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-}
-
-.page-subtitle {
-    color: #64748b;
-    font-size: 12px;
-    font-weight: 500;
-}
-
-/* Content Wrapper */
-.content-wrapper {
-    display: grid;
-    grid-template-columns: 280px 1fr;
-    gap: 20px;
-}
-
-/* Sidebar */
-.sidebar-card {
-    background: white;
-    border-radius: 16px;
-    padding: 20px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-    border: 1px solid rgba(0, 0, 0, 0.05);
-    max-height: calc(100vh - 250px);
-    overflow-y: auto;
-}
-
-.sidebar-card::-webkit-scrollbar {
-    width: 6px;
-}
-
-.sidebar-card::-webkit-scrollbar-track {
-    background: #f1f5f9;
-    border-radius: 10px;
-}
-
-.sidebar-card::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 10px;
-}
-
-.sidebar-title {
-    font-size: 14px;
-    font-weight: 700;
-    color: var(--dark);
-    margin-bottom: 12px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.sidebar-title i {
-    color: var(--primary);
+.user-list-title i {
+  color: #f59e0b;
 }
 
 .user-item {
-    padding: 10px 12px;
-    border-radius: 10px;
-    margin-bottom: 6px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--dark);
-    text-decoration: none;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #2d3748;
+  text-decoration: none;
+  border: 1px solid transparent;
 }
 
 .user-item:hover {
-    background: #f1f5f9;
-    color: var(--dark);
+  background: #fef3c7;
+  color: #2d3748;
+  border-color: #fbbf24;
 }
 
 .user-item.active {
-    background: linear-gradient(135deg, var(--primary), var(--secondary));
-    color: white;
-    font-weight: 600;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: white;
+  font-weight: 600;
+  border-color: #f59e0b;
 }
 
 .user-item i {
-    font-size: 16px;
+  font-size: 16px;
 }
 
 .user-badge-label {
-    font-size: 10px;
-    background: rgba(245, 158, 11, 0.2);
-    color: #f59e0b;
-    padding: 2px 6px;
-    border-radius: 4px;
-    margin-left: auto;
+  font-size: 9px;
+  background: rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin-left: auto;
+  font-weight: 700;
 }
 
 .user-item.active .user-badge-label {
-    background: rgba(255, 255, 255, 0.2);
-    color: white;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
 }
 
-/* Main Card */
-.main-card {
-    background: white;
-    border-radius: 16px;
-    padding: 24px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-    border: 1px solid rgba(0, 0, 0, 0.05);
+/* Info Bar */
+.info-bar {
+  background: #f8fafc;
+  padding: 12px 16px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-left: 4px solid #f59e0b;
 }
 
-.main-card-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 20px;
-    padding-bottom: 16px;
-    border-bottom: 2px solid #f1f5f9;
+.info-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #2d3748;
 }
 
-.main-card-title {
-    font-size: 16px;
-    font-weight: 700;
-    color: var(--dark);
-    display: flex;
-    align-items: center;
-    gap: 8px;
+.info-bar-left i {
+  color: #f59e0b;
+  font-size: 16px;
 }
 
-.main-card-title i {
-    color: var(--warning);
-    font-size: 20px;
-}
-
-.selected-user {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--primary);
+.info-bar-user {
+  color: #667eea;
+  font-weight: 700;
 }
 
 /* Action Buttons */
 .action-buttons {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 16px;
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
 }
 
 .btn-action-sm {
-    padding: 8px 16px;
-    border-radius: 8px;
-    font-size: 12px;
-    font-weight: 600;
-    border: none;
-    transition: all 0.2s ease;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    cursor: pointer;
-}
-
-.btn-back-sm {
-    background: linear-gradient(135deg, #64748b, #475569);
-    color: white;
-    text-decoration: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  border: none;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
 }
 
 .btn-check-all {
-    background: linear-gradient(135deg, var(--success), #059669);
-    color: white;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
 }
 
 .btn-uncheck-all {
-    background: linear-gradient(135deg, var(--danger), #dc2626);
-    color: white;
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: white;
 }
 
 .btn-action-sm:hover {
-    transform: translateY(-1px);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
 }
 
 /* Table */
-.table-custom {
-    font-size: 13px;
-    margin-bottom: 20px;
+.table-access {
+  margin-bottom: 20px;
 }
 
-.table-custom thead {
-    background: linear-gradient(135deg, var(--warning), #fbbf24);
-    color: white;
+.table-access thead {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
 }
 
-.table-custom thead th {
-    font-weight: 600;
-    font-size: 12px;
-    padding: 12px;
-    border: none;
+.table-access thead th {
+  font-weight: 600;
+  font-size: 12px;
+  padding: 12px;
+  border: none;
 }
 
-.table-custom tbody td {
-    padding: 12px;
-    vertical-align: middle;
-    border-bottom: 1px solid #f1f5f9;
+.table-access tbody td {
+  padding: 12px;
+  vertical-align: middle;
+  border-bottom: 1px solid #f1f5f9;
 }
 
-.table-custom tbody tr:last-child td {
-    border-bottom: none;
+.table-access tbody tr:last-child td {
+  border-bottom: none;
 }
 
-.table-custom tbody tr {
-    transition: all 0.2s ease;
+.table-access tbody tr {
+  transition: all 0.2s ease;
 }
 
-.table-custom tbody tr:hover {
-    background: #fef3c7;
+.table-access tbody tr:hover {
+  background: #fef3c7;
+}
+
+.menu-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  color: #2d3748;
+}
+
+.menu-icon {
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 14px;
 }
 
 /* Checkbox Custom */
 .form-check-input {
-    width: 1.5em;
-    height: 1.5em;
-    border: 2px solid #cbd5e1;
-    cursor: pointer;
+  width: 20px;
+  height: 20px;
+  border: 2px solid #cbd5e1;
+  cursor: pointer;
 }
 
 .form-check-input:checked {
-    background-color: var(--success);
-    border-color: var(--success);
+  background-color: #10b981;
+  border-color: #10b981;
 }
 
 /* Submit Button */
-.btn-submit {
-    width: 100%;
-    padding: 14px;
-    background: linear-gradient(135deg, var(--primary), var(--secondary));
-    color: white;
-    border: none;
-    border-radius: 10px;
-    font-size: 14px;
-    font-weight: 700;
-    transition: all 0.3s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+.btn-save-access {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  border: none;
+  color: white;
+  padding: 12px 20px;
+  border-radius: 5px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  width: 100%;
 }
 
-.btn-submit:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(139, 92, 246, 0.4);
+.btn-save-access i {
+  margin-right: 5px;
 }
 
-/* Bottom Bar */
-.bottom-bar {
-    background: rgba(255, 255, 255, 0.98);
-    backdrop-filter: blur(20px);
-    padding: 12px 0;
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    z-index: 100;
-    box-shadow: 0 -1px 3px rgba(0, 0, 0, 0.05);
-    border-top: 1px solid rgba(0, 0, 0, 0.05);
+.btn-save-access:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  color: white;
 }
+';
 
-.footer-content {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 16px;
-    font-size: 12px;
-    color: #64748b;
-    font-weight: 600;
-}
+$extra_js = '
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+';
 
-.footer-logo {
-    height: 24px;
-    border-radius: 6px;
-}
+// Include header
+include 'includes/header.php';
 
-.footer-divider {
-    width: 1px;
-    height: 20px;
-    background: #e2e8f0;
-}
+// Include sidebar
+include 'includes/sidebar.php';
+?>
 
-.footer-contact {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    background: linear-gradient(135deg, #25D366, #128C7E);
-    color: white;
-    padding: 6px 12px;
-    border-radius: 8px;
-    font-size: 11px;
-    font-weight: 700;
-}
+  <div class="content-wrapper">
+    <section class="content-header">
+      <h1>Manajemen Hak Akses</h1>
+      <ol class="breadcrumb">
+        <li><a href="dashboard.php"><i class="fa fa-dashboard"></i> Home</a></li>
+        <li><a href="#">Setting</a></li>
+        <li class="active">Hak Akses</li>
+      </ol>
+    </section>
 
-/* Responsive */
-@media (max-width: 992px) {
-    .content-wrapper {
-        grid-template-columns: 1fr;
-    }
-    
-    .sidebar-card {
-        max-height: 300px;
-    }
-    
-    .user-badge span {
-        display: none;
-    }
-}
+    <section class="content">
+      
+      <!-- Welcome Box -->
+      <div class="welcome-box">
+        <h3><i class="fa fa-shield"></i> Manajemen Hak Akses Pengguna</h3>
+        <p>Kelola hak akses menu sistem untuk setiap pengguna</p>
+      </div>
 
-@media (max-width: 768px) {
-    .page-title {
-        font-size: 18px;
-    }
-    
-    .footer-content {
-        flex-wrap: wrap;
-        gap: 8px;
-    }
-}
-</style>
-</head>
-<body>
-
-<!-- Animated Background -->
-<div class="bg-animated"></div>
-
-<!-- Top Bar -->
-<div class="top-bar">
-    <div class="container">
-        <div class="d-flex align-items-center justify-content-between">
-            <div class="brand">
-                <div class="brand-icon">
-                    <i class="bi bi-hospital-fill"></i>
-                </div>
-                <span>MediFix</span>
-            </div>
-            
-            <div class="top-bar-right">
-                <div class="time-badge">
-                    <i class="bi bi-clock-fill"></i>
-                    <span id="clockDisplay"></span>
-                </div>
-                
-                <div class="user-badge">
-                    <span><?= htmlspecialchars($nama) ?></span>
-                    <div class="user-avatar-small">
-                        <i class="bi bi-person-fill"></i>
-                    </div>
-                </div>
-            </div>
+      <?php if ($success): ?>
+        <div class="alert alert-success alert-dismissible">
+          <button type="button" class="close" data-dismiss="alert">&times;</button>
+          <i class="fa fa-check-circle"></i> <?= $success ?>
         </div>
-    </div>
-</div>
+      <?php endif; ?>
 
-<!-- Main Content -->
-<div class="main-content">
-    <div class="container">
-        
-        <!-- Page Header -->
-        <div class="page-header">
-            <div class="page-title">
-                <i class="bi bi-shield-lock-fill"></i>
-                Manajemen Hak Akses
-            </div>
-            <div class="page-subtitle">
-                Kelola hak akses menu sistem untuk setiap pengguna
-            </div>
+      <?php if ($error): ?>
+        <div class="alert alert-danger alert-dismissible">
+          <button type="button" class="close" data-dismiss="alert">&times;</button>
+          <i class="fa fa-exclamation-triangle"></i> <?= $error ?>
         </div>
+      <?php endif; ?>
+
+      <div class="row">
         
-        <!-- Content -->
-        <div class="content-wrapper">
-            
-            <!-- Sidebar - User List -->
-            <div class="sidebar-card">
-                <div class="sidebar-title">
-                    <i class="bi bi-people-fill"></i>
-                    Daftar Pengguna
+        <!-- User List (Left) -->
+        <div class="col-md-3">
+          <div class="box">
+            <div class="box-body" style="padding: 10px;">
+              <div class="user-list-card">
+                <div class="user-list-title">
+                  <i class="fa fa-users"></i> Pilih Pengguna
                 </div>
                 
                 <?php foreach($users as $u): ?>
                 <a href="?user_id=<?= $u['id'] ?>" class="user-item <?= ($selectedUser == $u['id']) ? 'active' : '' ?>">
-                    <i class="bi bi-person-circle"></i>
-                    <span><?= htmlspecialchars($u['nama']) ?></span>
-                    <?php if($u['id'] == $_SESSION['user_id']): ?>
-                    <span class="user-badge-label">Anda</span>
-                    <?php endif; ?>
+                  <i class="fa fa-user-circle"></i>
+                  <span><?= htmlspecialchars($u['nama']) ?></span>
+                  <?php if($u['id'] == $_SESSION['user_id']): ?>
+                  <span class="user-badge-label">ANDA</span>
+                  <?php endif; ?>
                 </a>
                 <?php endforeach; ?>
+              </div>
             </div>
-            
-            <!-- Main Content - Access Form -->
-            <div class="main-card">
-                <div class="main-card-header">
-                    <div class="main-card-title">
-                        <i class="bi bi-key-fill"></i>
-                        Hak Akses Menu
-                    </div>
-                    <div class="selected-user">
-                        <i class="bi bi-arrow-right"></i> <?= htmlspecialchars($selectedUserName) ?>
-                    </div>
+          </div>
+        </div>
+
+        <!-- Access Table (Right) -->
+        <div class="col-md-9">
+          <div class="box">
+            <div class="box-header with-border">
+              <h3 class="box-title">
+                <i class="fa fa-key"></i> Pengaturan Hak Akses Menu
+              </h3>
+            </div>
+            <div class="box-body">
+
+              <form method="POST">
+                <input type="hidden" name="user_id" value="<?= $selectedUser ?>">
+                
+                <!-- Info Bar -->
+                <div class="info-bar">
+                  <div class="info-bar-left">
+                    <i class="fa fa-user-circle"></i>
+                    <span>Mengatur hak akses untuk: <span class="info-bar-user"><?= htmlspecialchars($selectedUserName) ?></span></span>
+                  </div>
                 </div>
                 
-                <form method="POST">
-                    <input type="hidden" name="user_id" value="<?= $selectedUser ?>">
-                    
-                    <!-- Action Buttons -->
-                    <div class="action-buttons">
-                        <a href="setting_dashboard.php" class="btn-action-sm btn-back-sm">
-                            <i class="bi bi-arrow-left"></i> Kembali
-                        </a>
-                        <button type="button" onclick="checkAll()" class="btn-action-sm btn-check-all">
-                            <i class="bi bi-check-all"></i> Centang Semua
-                        </button>
-                        <button type="button" onclick="uncheckAll()" class="btn-action-sm btn-uncheck-all">
-                            <i class="bi bi-x-lg"></i> Kosongkan
-                        </button>
-                    </div>
-                    
-                    <!-- Table -->
-                    <div class="table-responsive">
-                        <table class="table table-custom align-middle">
-                            <thead>
-                                <tr>
-                                    <th>Nama Menu</th>
-                                    <th width="100" class="text-center">Akses</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($menus as $m): ?>
-                                <tr>
-                                    <td>
-                                        <div class="d-flex align-items-center gap-2">
-                                            <i class="bi bi-menu-button-wide" style="color: var(--warning);"></i>
-                                            <span style="font-weight: 600; color: var(--dark);"><?= htmlspecialchars($m['nama_menu']) ?></span>
-                                        </div>
-                                    </td>
-                                    <td class="text-center">
-                                        <input type="checkbox" class="form-check-input menuCheck"
-                                               name="akses[<?= $m['kode'] ?>]"
-                                               <?= (!empty($currentAccess[$m['kode']])) ? 'checked' : '' ?>>
-                                    </td>
-                                </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                    
-                    <!-- Submit Button -->
-                    <button type="submit" class="btn-submit">
-                        <i class="bi bi-save"></i> Simpan Hak Akses
-                    </button>
-                </form>
-            </div>
-            
-        </div>
-        
-    </div>
-</div>
+                <!-- Action Buttons -->
+                <div class="action-buttons">
+                  <button type="button" onclick="checkAll()" class="btn-action-sm btn-check-all">
+                    <i class="fa fa-check-square"></i> Centang Semua
+                  </button>
+                  <button type="button" onclick="uncheckAll()" class="btn-action-sm btn-uncheck-all">
+                    <i class="fa fa-square-o"></i> Kosongkan Semua
+                  </button>
+                </div>
+                
+                <!-- Table -->
+                <div class="table-responsive">
+                  <table class="table table-bordered table-striped table-access">
+                    <thead>
+                      <tr>
+                        <th width="60" class="text-center">No</th>
+                        <th>Nama Menu</th>
+                        <th width="120" class="text-center">Hak Akses</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <?php 
+                      $no = 1;
+                      foreach ($menus as $m): 
+                      ?>
+                      <tr>
+                        <td class="text-center" style="color: #94a3b8; font-weight: 600;">
+                          <?= $no++ ?>
+                        </td>
+                        <td>
+                          <div class="menu-name">
+                            <div class="menu-icon">
+                              <i class="fa fa-th-large"></i>
+                            </div>
+                            <span><?= htmlspecialchars($m['nama_menu']) ?></span>
+                          </div>
+                        </td>
+                        <td class="text-center">
+                          <input type="checkbox" class="form-check-input menuCheck"
+                                 name="akses[<?= $m['kode'] ?>]"
+                                 <?= (!empty($currentAccess[$m['kode']])) ? 'checked' : '' ?>>
+                        </td>
+                      </tr>
+                      <?php endforeach; ?>
+                    </tbody>
+                  </table>
+                </div>
+                
+                <!-- Submit Button -->
+                <div class="form-group">
+                  <button type="submit" class="btn btn-primary btn-save-access">
+                    <i class="fa fa-save"></i> Simpan Hak Akses
+                  </button>
+                </div>
+              </form>
 
-<div class="bottom-bar">
-    <div class="container">
-        <div class="footer-content">
-            <img src="image/logo.png" class="footer-logo" alt="Logo">
-            <div class="footer-divider"></div>
-            <div class="footer-contact">
-                <i class="bi bi-whatsapp"></i>
-                <strong style="color: #1e293b;">082177846209 - © 2026 MediFix Apps - All Rights Reserved</strong>
             </div>
-            <div class="footer-divider"></div>
-            <img src="image/logo.png" class="footer-logo" alt="Logo">
+          </div>
         </div>
-    </div>
-</div>
+
+      </div>
+
+    </section>
+  </div>
 
 <?php if (!empty($success)): ?>
 <script>
 Swal.fire({
     icon: 'success',
     title: 'Berhasil!',
-    text: 'Hak akses berhasil diperbarui.',
+    text: '<?= $success ?>',
     timer: 2000,
-    showConfirmButton: false,
-    customClass: {
-        popup: 'animated-popup'
-    }
+    showConfirmButton: false
 });
 </script>
 <?php endif; ?>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<?php if (!empty($error)): ?>
 <script>
-function updateClock() {
-    const now = new Date();
-    const waktu = now.toLocaleTimeString('id-ID');
-    document.getElementById('clockDisplay').innerHTML = waktu;
-}
+Swal.fire({
+    icon: 'error',
+    title: 'Gagal!',
+    text: '<?= $error ?>',
+    confirmButtonText: 'OK'
+});
+</script>
+<?php endif; ?>
 
+<script>
 function checkAll() {
     document.querySelectorAll('.menuCheck').forEach(c => c.checked = true);
 }
@@ -779,9 +517,9 @@ function checkAll() {
 function uncheckAll() {
     document.querySelectorAll('.menuCheck').forEach(c => c.checked = false);
 }
-
-setInterval(updateClock, 1000);
-updateClock();
 </script>
-</body>
-</html>
+
+<?php
+// Include footer
+include 'includes/footer.php';
+?>

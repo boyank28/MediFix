@@ -460,19 +460,7 @@ footer strong {
         </a>
 
 
-        <!-- FRISTA -->
-        <a 
-            href="<?= $fiturAktif['frista'] ? 'fristaweb/frista/index.php' : 'javascript:void(0)' ?>" 
-            class="card-menu <?= $fiturAktif['frista'] ? '' : 'opacity-50' ?>" 
-            <?= $fiturAktif['frista'] ? '' : 'data-bs-toggle="modal" data-bs-target="#notAvailableModal"' ?>
-        >
-            <div class="icon-wrapper bg-frista">
-                <i class="bi bi-person-vcard-fill"></i>
-            </div>
-            <div class="menu-label">FRISTA</div>
-            <div class="menu-subtitle">Layanan frista</div>
-        </a>
-
+      
 
         <!-- CARI PASIEN RANAP (special case: tetap modal form) -->
         <a 
