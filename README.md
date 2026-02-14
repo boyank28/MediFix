@@ -5,7 +5,8 @@ MediFix adalah aplikasi berbasis web yang dirancang untuk mendukung alur pelayan
 
 Aplikasi ini dikembangkan untuk membantu digitalisasi layanan kesehatan dengan fokus pada **antrian, integrasi BPJS**.
 
-<img width="1437" height="816" alt="Screen Shot 2026-02-12 at 21 44 21" src="https://github.com/user-attachments/assets/9b07bba1-7cb9-4f87-af54-aae91e6345ea" />
+<img width="1440" height="818" alt="Screen Shot 2026-02-14 at 09 21 32" src="https://github.com/user-attachments/assets/9d2a02c7-dc34-4f8b-b48e-d4ad8b5bd00e" />
+
 
 ---
 
@@ -26,6 +27,8 @@ Digunakan langsung oleh pasien untuk mempercepat proses pelayanan:
 
 <img width="1429" height="793" alt="Screen Shot 2026-02-12 at 21 34 48" src="https://github.com/user-attachments/assets/dd7f7d44-4d4f-472c-a560-cdeae4803376" />
 
+<img width="1435" height="808" alt="Screen Shot 2026-02-14 at 09 24 00" src="https://github.com/user-attachments/assets/cb7b3389-8ce1-4c4b-b9f3-055c518a26ce" />
+
 
 
 ---
@@ -39,7 +42,6 @@ Digunakan oleh petugas pendaftaran:
 
 <img width="1440" height="813" alt="Screen Shot 2026-02-14 at 09 22 51" src="https://github.com/user-attachments/assets/5f8bb99d-21d4-4cc8-aa0d-befeb762694d" />
 
-<img width="1435" height="808" alt="Screen Shot 2026-02-14 at 09 24 00" src="https://github.com/user-attachments/assets/cb7b3389-8ce1-4c4b-b9f3-055c518a26ce" />
 
 <img width="1440" height="815" alt="Screen Shot 2026-02-12 at 21 44 57" src="https://github.com/user-attachments/assets/cfee4573-4024-4f38-ad4c-0ea5317eb12b" />
 
@@ -56,8 +58,8 @@ Digunakan oleh unit pelayanan poli:
 
 <img width="1440" height="806" alt="Screen Shot 2026-02-14 at 09 24 32" src="https://github.com/user-attachments/assets/034e104d-3546-42c3-912b-741469b4cd8d" />
 
+<img width="1440" height="821" alt="Screen Shot 2026-02-14 at 09 33 26" src="https://github.com/user-attachments/assets/5932cdef-d638-451a-9e2f-ae0e493be7be" />
 
-<img width="1440" height="818" alt="Screen Shot 2026-02-12 at 21 34 03" src="https://github.com/user-attachments/assets/47e26278-aff9-42b9-9db3-33d7ef5bff7f" />
 
 
 ---
