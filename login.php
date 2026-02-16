@@ -108,194 +108,476 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register_submit'])) {
   <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
   <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
-  <!-- AdminLTE -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/admin-lte/2.4.18/css/AdminLTE.min.css">
   <!-- Google Font -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,600,700,300italic,400italic,600italic">
 
   <style>
-    body {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      min-height: 100vh;
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      height: 100vh;
+      overflow: hidden;
       font-family: 'Source Sans Pro', sans-serif;
     }
-    
-    .login-box {
-      width: 400px;
-      margin: 5% auto;
+
+    body {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
     }
-    
-    .login-logo {
+
+    /* Animated Background */
+    .bg-animated {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      overflow: hidden;
+    }
+
+    .particle {
+      position: absolute;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 50%;
+      animation: float 30s infinite ease-in-out;
+    }
+
+    .particle:nth-child(1) { width: 120px; height: 120px; top: 15%; left: 10%; animation-delay: 0s; }
+    .particle:nth-child(2) { width: 90px; height: 90px; top: 65%; left: 80%; animation-delay: 5s; }
+    .particle:nth-child(3) { width: 70px; height: 70px; top: 45%; left: 15%; animation-delay: 10s; }
+    .particle:nth-child(4) { width: 100px; height: 100px; top: 25%; left: 75%; animation-delay: 15s; }
+
+    @keyframes float {
+      0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.3; }
+      33% { transform: translate(40px, -50px) scale(1.1); opacity: 0.5; }
+      66% { transform: translate(-30px, 30px) scale(0.9); opacity: 0.4; }
+    }
+
+    /* Main Container - Landscape & Fullscreen */
+    .login-wrapper {
+      position: relative;
+      z-index: 1;
+      width: 95%;
+      max-width: 1400px;
+      height: 85vh;
+      max-height: 700px;
       background: white;
+      border-radius: 20px;
+      box-shadow: 0 25px 80px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+      display: flex;
+      animation: slideIn 0.6s ease-out;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: scale(0.95); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    /* Left Panel - Info */
+    .left-panel {
+      flex: 0 0 45%;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 50px 40px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      color: white;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .left-panel::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      right: -30%;
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+      border-radius: 50%;
+    }
+
+    .branding {
+      text-align: center;
+      margin-bottom: 40px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .branding-icon {
+      width: 90px;
+      height: 90px;
+      background: rgba(255, 255, 255, 0.2);
+      backdrop-filter: blur(10px);
+      border-radius: 18px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    }
+
+    .branding-icon i {
+      font-size: 45px;
+      color: white;
+    }
+
+    .branding h1 {
+      font-size: 38px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      text-shadow: 0 3px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .branding p {
+      font-size: 15px;
+      opacity: 0.95;
+      font-weight: 400;
+    }
+
+    .hospital-info-box {
+      background: rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(10px);
+      border-radius: 15px;
       padding: 25px;
-      border-radius: 10px 10px 0 0;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      text-align: center;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      position: relative;
+      z-index: 1;
     }
-    
-    .login-logo a {
-      color: #3c8dbc;
-      font-size: 35px;
+
+    .hospital-info-box h4 {
+      font-size: 17px;
       font-weight: 700;
-      text-decoration: none;
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
-    
-    .login-logo-text {
-      font-size: 16px;
-      color: #666;
-      margin-top: 5px;
+
+    .hospital-info-box h4 i {
+      font-size: 20px;
     }
-    
-    .login-box-body {
-      background: #fff;
-      padding: 30px;
-      border-radius: 0 0 10px 10px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+
+    .hospital-info-box p {
+      margin: 8px 0;
+      font-size: 14px;
+      opacity: 0.95;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      line-height: 1.5;
     }
-    
-    .login-box-msg {
-      margin: 0 0 20px;
-      text-align: center;
-      color: #555;
-      font-size: 16px;
-      font-weight: 600;
-    }
-    
-    .hospital-info {
-      background: #f9f9f9;
-      padding: 15px;
-      border-radius: 5px;
-      margin-bottom: 20px;
-      border-left: 4px solid #3c8dbc;
-    }
-    
-    .hospital-info h4 {
-      margin: 0 0 10px 0;
-      color: #3c8dbc;
-      font-size: 16px;
-      font-weight: 700;
-    }
-    
-    .hospital-info p {
-      margin: 5px 0;
-      color: #666;
-      font-size: 13px;
-    }
-    
-    .hospital-info i {
-      margin-right: 8px;
-      color: #3c8dbc;
+
+    .hospital-info-box p i {
       width: 16px;
+      font-size: 13px;
+      margin-top: 2px;
     }
-    
-    .form-group {
-      margin-bottom: 20px;
+
+    /* Right Panel - Form */
+    .right-panel {
+      flex: 1;
+      padding: 50px 45px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      overflow-y: auto;
     }
-    
-    .form-control {
-      height: 45px;
-      border-radius: 5px;
-      border: 1px solid #d2d6de;
-      box-shadow: none;
+
+    .right-panel::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .right-panel::-webkit-scrollbar-track {
+      background: #f1f1f1;
+    }
+
+    .right-panel::-webkit-scrollbar-thumb {
+      background: #3c8dbc;
+      border-radius: 3px;
+    }
+
+    .form-title {
+      margin-bottom: 30px;
+    }
+
+    .form-title h2 {
+      font-size: 28px;
+      font-weight: 700;
+      color: #333;
+      margin-bottom: 8px;
+    }
+
+    .form-title p {
+      color: #666;
       font-size: 14px;
     }
-    
+
+    /* Alerts */
+    .alert {
+      border-radius: 8px;
+      border: none;
+      padding: 12px 18px;
+      margin-bottom: 20px;
+      font-weight: 600;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .alert-danger {
+      background: #fee;
+      color: #c33;
+      border-left: 4px solid #c33;
+    }
+
+    .alert-success {
+      background: #efe;
+      color: #3c3;
+      border-left: 4px solid #3c3;
+    }
+
+    .alert .close {
+      margin-left: auto;
+      opacity: 0.6;
+      font-size: 20px;
+      line-height: 1;
+      color: inherit;
+    }
+
+    /* Form Elements */
+    .form-group {
+      margin-bottom: 18px;
+    }
+
+    .form-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #555;
+      margin-bottom: 6px;
+      display: block;
+    }
+
+    .input-wrapper {
+      position: relative;
+    }
+
+    .input-icon {
+      position: absolute;
+      left: 15px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #999;
+      font-size: 16px;
+    }
+
+    .form-control {
+      height: 45px;
+      border-radius: 8px;
+      border: 1px solid #d2d6de;
+      padding: 10px 15px 10px 42px;
+      font-size: 14px;
+      transition: all 0.3s ease;
+      background: #fff;
+      width: 100%;
+    }
+
     .form-control:focus {
       border-color: #3c8dbc;
-      box-shadow: 0 0 0 0.2rem rgba(60,141,188,0.25);
+      box-shadow: 0 0 0 3px rgba(60, 141, 188, 0.1);
+      outline: none;
     }
-    
-    .input-group-addon {
-      background: #fff;
-      border: 1px solid #d2d6de;
-      border-right: none;
-      border-radius: 5px 0 0 5px;
+
+    /* Buttons */
+    .btn-submit {
+      height: 45px;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      border: none;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      width: 100%;
     }
-    
-    .input-group .form-control {
-      border-left: none;
-      border-radius: 0 5px 5px 0;
-    }
-    
+
     .btn-primary {
       background-color: #3c8dbc;
       border-color: #367fa9;
-      height: 45px;
-      font-size: 16px;
-      font-weight: 600;
-      border-radius: 5px;
+      color: white;
     }
-    
-    .btn-primary:hover,
-    .btn-primary:focus {
+
+    .btn-primary:hover {
       background-color: #367fa9;
-      border-color: #2f6c8f;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(60, 141, 188, 0.3);
     }
-    
+
     .btn-success {
-      height: 45px;
-      font-size: 16px;
-      font-weight: 600;
-      border-radius: 5px;
+      background-color: #00a65a;
+      border-color: #008d4c;
+      color: white;
     }
-    
-    .alert {
-      border-radius: 5px;
-      margin-bottom: 20px;
+
+    .btn-success:hover {
+      background-color: #008d4c;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 166, 90, 0.3);
     }
-    
-    .login-footer {
+
+    /* Form Toggle */
+    .form-switch {
       text-align: center;
       margin-top: 20px;
       padding-top: 20px;
-      border-top: 1px solid #f4f4f4;
-      color: #999;
+      border-top: 1px solid #f0f0f0;
+      color: #666;
       font-size: 13px;
     }
-    
-    @keyframes fadeInDown {
-      from {
-        opacity: 0;
-        transform: translate3d(0, -20px, 0);
-      }
-      to {
-        opacity: 1;
-        transform: translate3d(0, 0, 0);
-      }
+
+    .form-switch a {
+      color: #3c8dbc;
+      font-weight: 600;
+      text-decoration: none;
     }
-    
-    .login-box {
-      animation: fadeInDown 0.5s;
+
+    .form-switch a:hover {
+      text-decoration: underline;
     }
-    
+
     .form-register {
       display: none;
     }
-    
-    .form-register.active {
-      display: block;
-    }
-    
+
+    .form-register.active,
     .form-login.active {
       display: block;
     }
-    
-    .form-login {
-      display: block;
+
+    /* Grid for Register */
+    .input-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+    }
+
+    .input-row .form-group {
+      margin-bottom: 18px;
+    }
+
+    /* Footer */
+    .form-footer {
+      margin-top: 25px;
+      text-align: center;
+      padding-top: 20px;
+      border-top: 1px solid #f0f0f0;
+      color: #999;
+      font-size: 12px;
+    }
+
+    .form-footer i {
+      margin: 0 4px;
+    }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+      .login-wrapper {
+        width: 98%;
+        height: 90vh;
+      }
+
+      .left-panel {
+        flex: 0 0 40%;
+        padding: 35px 30px;
+      }
+
+      .right-panel {
+        padding: 35px 30px;
+      }
+
+      .branding h1 {
+        font-size: 32px;
+      }
+
+      .form-title h2 {
+        font-size: 24px;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .login-wrapper {
+        flex-direction: column;
+        width: 95%;
+        height: 95vh;
+      }
+
+      .left-panel {
+        flex: 0 0 auto;
+        padding: 25px;
+      }
+
+      .branding-icon {
+        width: 70px;
+        height: 70px;
+      }
+
+      .branding-icon i {
+        font-size: 35px;
+      }
+
+      .branding h1 {
+        font-size: 28px;
+      }
+
+      .right-panel {
+        padding: 25px;
+        overflow-y: auto;
+      }
+
+      .input-row {
+        grid-template-columns: 1fr;
+        gap: 0;
+      }
     }
   </style>
 </head>
-<body class="hold-transition login-page">
-<div class="login-box">
-  <div class="login-logo">
-    <a href="#"><b>Medi</b>Fix</a>
-    <div class="login-logo-text">Anjungan Pasien Mandiri & Sistem Antrian</div>
-  </div>
+<body>
+
+<!-- Animated Background -->
+<div class="bg-animated">
+  <div class="particle"></div>
+  <div class="particle"></div>
+  <div class="particle"></div>
+  <div class="particle"></div>
+</div>
+
+<!-- Login Wrapper -->
+<div class="login-wrapper">
   
-  <div class="login-box-body">
+  <!-- Left Panel -->
+  <div class="left-panel">
+    <div class="branding">
+      <div class="branding-icon">
+        <i class="fa fa-heartbeat"></i>
+      </div>
+      <h1><b>Medi</b>Fix</h1>
+      <p>Anjungan Pasien Mandiri & Sistem Antrian</p>
+    </div>
     
-    <!-- Hospital Info -->
-    <div class="hospital-info">
+    <div class="hospital-info-box">
       <h4><i class="fa fa-hospital-o"></i> <?= htmlspecialchars($namaRS) ?></h4>
       <?php if (!empty($alamatRS)): ?>
       <p><i class="fa fa-map-marker"></i> <?= htmlspecialchars($alamatRS) ?></p>
@@ -304,119 +586,135 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register_submit'])) {
       <p><i class="fa fa-map"></i> <?= htmlspecialchars($kabupatenRS) ?><?= !empty($propinsiRS) ? ' - ' . htmlspecialchars($propinsiRS) : '' ?></p>
       <?php endif; ?>
     </div>
+  </div>
 
+  <!-- Right Panel -->
+  <div class="right-panel">
+    
     <?php if ($error): ?>
-    <div class="alert alert-danger alert-dismissible">
-      <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
-      <i class="fa fa-exclamation-triangle"></i> <?= htmlspecialchars($error) ?>
+    <div class="alert alert-danger">
+      <i class="fa fa-exclamation-triangle"></i>
+      <span><?= htmlspecialchars($error) ?></span>
+      <button type="button" class="close" data-dismiss="alert">&times;</button>
     </div>
     <?php endif; ?>
     
     <?php if ($success): ?>
-    <div class="alert alert-success alert-dismissible">
-      <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
-      <i class="fa fa-check-circle"></i> <?= htmlspecialchars($success) ?>
+    <div class="alert alert-success">
+      <i class="fa fa-check-circle"></i>
+      <span><?= htmlspecialchars($success) ?></span>
+      <button type="button" class="close" data-dismiss="alert">&times;</button>
     </div>
     <?php endif; ?>
 
     <!-- Login Form -->
     <form id="loginForm" class="form-login <?= isset($_POST['register_submit']) ? '' : 'active' ?>" method="post">
-      <p class="login-box-msg">Silakan login untuk melanjutkan</p>
+      <div class="form-title">
+        <h2>Selamat Datang</h2>
+        <p>Silakan login untuk melanjutkan</p>
+      </div>
       
-      <div class="form-group has-feedback">
-        <div class="input-group">
-          <span class="input-group-addon">
-            <i class="fa fa-user"></i>
-          </span>
-          <input type="text" name="login" class="form-control" placeholder="Email atau NIK" required>
+      <div class="form-group">
+        <label class="form-label">Email atau NIK</label>
+        <div class="input-wrapper">
+          <i class="fa fa-user input-icon"></i>
+          <input type="text" name="login" class="form-control" placeholder="Masukkan email atau NIK" required>
         </div>
       </div>
       
-      <div class="form-group has-feedback">
-        <div class="input-group">
-          <span class="input-group-addon">
-            <i class="fa fa-lock"></i>
-          </span>
-          <input type="password" name="password" class="form-control" placeholder="Password" required>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <div class="input-wrapper">
+          <i class="fa fa-lock input-icon"></i>
+          <input type="password" name="password" class="form-control" placeholder="Masukkan password" required>
         </div>
       </div>
       
-      <div class="row">
-        <div class="col-xs-12">
-          <button type="submit" name="login_submit" class="btn btn-primary btn-block btn-flat">
-            <i class="fa fa-sign-in"></i> Masuk Sekarang
-          </button>
-        </div>
-      </div>
+      <button type="submit" name="login_submit" class="btn-submit btn-primary">
+        <i class="fa fa-sign-in"></i>
+        <span>Masuk Sekarang</span>
+      </button>
       
-      <div class="login-footer">
-        Belum punya akun? <a href="#" id="showRegister" style="color: #3c8dbc; font-weight: 600;">Daftar di sini</a>
+      <div class="form-switch">
+        Belum punya akun? <a href="#" id="showRegister">Daftar di sini</a>
       </div>
     </form>
 
     <!-- Register Form -->
     <form id="registerForm" class="form-register <?= isset($_POST['register_submit']) ? 'active' : '' ?>" method="post">
-      <p class="login-box-msg">Buat Akun Baru</p>
+      <div class="form-title">
+        <h2>Daftar Akun Baru</h2>
+        <p>Lengkapi data di bawah ini</p>
+      </div>
       
-      <div class="row">
-        <div class="col-xs-6">
-          <div class="form-group">
-            <input type="text" name="nik" class="form-control" placeholder="NIK" required>
+      <div class="input-row">
+        <div class="form-group">
+          <label class="form-label">NIK</label>
+          <div class="input-wrapper">
+            <i class="fa fa-id-card input-icon"></i>
+            <input type="text" name="nik" class="form-control" placeholder="Nomor Induk" required>
           </div>
         </div>
-        <div class="col-xs-6">
-          <div class="form-group">
-            <input type="text" name="nama" class="form-control" placeholder="Nama Lengkap" required>
+        <div class="form-group">
+          <label class="form-label">Nama Lengkap</label>
+          <div class="input-wrapper">
+            <i class="fa fa-user input-icon"></i>
+            <input type="text" name="nama" class="form-control" placeholder="Nama lengkap" required>
           </div>
         </div>
       </div>
       
-      <div class="row">
-        <div class="col-xs-6">
-          <div class="form-group">
-            <input type="email" name="email" class="form-control" placeholder="Email" required>
+      <div class="input-row">
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <div class="input-wrapper">
+            <i class="fa fa-envelope input-icon"></i>
+            <input type="email" name="email" class="form-control" placeholder="email@example.com" required>
           </div>
         </div>
-        <div class="col-xs-6">
-          <div class="form-group">
-            <input type="text" name="hp" class="form-control" placeholder="Nomor HP">
-          </div>
-        </div>
-      </div>
-      
-      <div class="row">
-        <div class="col-xs-6">
-          <div class="form-group">
-            <input type="password" name="password" class="form-control" placeholder="Password" required>
-          </div>
-        </div>
-        <div class="col-xs-6">
-          <div class="form-group">
-            <input type="password" name="confirm" class="form-control" placeholder="Konfirmasi Password" required>
+        <div class="form-group">
+          <label class="form-label">Nomor HP</label>
+          <div class="input-wrapper">
+            <i class="fa fa-phone input-icon"></i>
+            <input type="text" name="hp" class="form-control" placeholder="08xxxxxxxxxx">
           </div>
         </div>
       </div>
       
-      <div class="row">
-        <div class="col-xs-12">
-          <button type="submit" name="register_submit" class="btn btn-success btn-block btn-flat">
-            <i class="fa fa-user-plus"></i> Daftar Sekarang
-          </button>
+      <div class="input-row">
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <div class="input-wrapper">
+            <i class="fa fa-lock input-icon"></i>
+            <input type="password" name="password" class="form-control" placeholder="Buat password" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Konfirmasi Password</label>
+          <div class="input-wrapper">
+            <i class="fa fa-lock input-icon"></i>
+            <input type="password" name="confirm" class="form-control" placeholder="Ulangi password" required>
+          </div>
         </div>
       </div>
       
-      <div class="login-footer">
-        Sudah punya akun? <a href="#" id="showLogin" style="color: #3c8dbc; font-weight: 600;">Login di sini</a>
+      <button type="submit" name="register_submit" class="btn-submit btn-success">
+        <i class="fa fa-user-plus"></i>
+        <span>Daftar Sekarang</span>
+      </button>
+      
+      <div class="form-switch">
+        Sudah punya akun? <a href="#" id="showLogin">Login di sini</a>
       </div>
     </form>
 
-    <div class="login-footer" style="margin-top: 30px; border-top: none;">
-      <p>
-        <i class="fa fa-copyright"></i> <?= date('Y') ?> MediFix Apps<br>
-        <small><i class="fa fa-whatsapp"></i> 082177846209</small>
-      </p>
+    <div class="form-footer">
+      <i class="fa fa-copyright"></i> <?= date('Y') ?> MediFix Apps
+      <br>
+      <i class="fa fa-whatsapp"></i> 082177846209
     </div>
   </div>
+  
 </div>
 
 <!-- jQuery 3 -->
@@ -427,13 +725,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register_submit'])) {
 <script>
 document.getElementById('showRegister')?.addEventListener('click', function(e) {
   e.preventDefault();
+  document.getElementById('loginForm').classList.remove('active');
   document.getElementById('loginForm').style.display = 'none';
+  document.getElementById('registerForm').classList.add('active');
   document.getElementById('registerForm').style.display = 'block';
 });
 
 document.getElementById('showLogin')?.addEventListener('click', function(e) {
   e.preventDefault();
+  document.getElementById('registerForm').classList.remove('active');
   document.getElementById('registerForm').style.display = 'none';
+  document.getElementById('loginForm').classList.add('active');
   document.getElementById('loginForm').style.display = 'block';
 });
 </script>

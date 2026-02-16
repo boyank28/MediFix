@@ -673,12 +673,20 @@ function fetchData() {
     // Show update indicator briefly
     indicator.classList.add('show');
     
-    fetch('api_farmasi_display.php')
+    // PENTING: Tambahkan timestamp untuk cache busting
+    const timestamp = new Date().getTime();
+    const url = `api_farmasi_display.php?t=${timestamp}`;
+    
+    fetch(url)
         .then(response => response.json())
         .then(data => {
+            console.log('📥 Data fetched:', data); // Debug log
+            
             if (data.success) {
                 updateDisplay(data, 'nonRacikan');
                 updateDisplay(data, 'racikan');
+            } else {
+                console.error('❌ API error:', data.error);
             }
             
             // Hide indicator
@@ -687,7 +695,7 @@ function fetchData() {
             }, 1000);
         })
         .catch(error => {
-            console.error('Error fetching data:', error);
+            console.error('❌ Error fetching data:', error);
             indicator.classList.remove('show');
         });
 }
@@ -718,3 +726,5 @@ window.addEventListener('load', () => {
 
 </body>
 </html>
+```
+

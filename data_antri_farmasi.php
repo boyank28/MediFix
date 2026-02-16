@@ -115,7 +115,7 @@ try {
     die("Gagal mengambil data: " . $e->getMessage());
 }
 
-// === AJAX Handler Pemanggilan ===
+// === AJAX Handler Pemanggilan - FIXED VERSION ===
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'panggil') {
     $no_resep = $_POST['no_resep'] ?? '';
 
@@ -145,30 +145,83 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $stmt->execute([$no_resep]);
     $data_resep = $stmt->fetch(PDO::FETCH_ASSOC);
 
+    $file_saved = false;
+    $file_path = '';
+    $error_log = [];
+    
     if ($data_resep) {
-        $dataDir = __DIR__ . '/data';
-        if (!file_exists($dataDir)) {
-            @mkdir($dataDir, 0777, true);
-        }
-        
-        $file = $dataDir . '/last_farmasi.json';
-        if (!is_writable($dataDir)) {
-            $file = __DIR__ . '/last_farmasi.json';
-        }
-        
         $jsonData = [
             'no_resep' => $data_resep['no_resep'],
             'nm_pasien' => $data_resep['nm_pasien'],
-            'nm_poli' => $data_resep['nm_poli'] ?? '-',
+            'nm_poli' => $data_resep['nm_poli'] ?? 'Instalasi Farmasi',
             'jenis_resep' => $data_resep['jenis_resep'],
             'waktu' => date('Y-m-d H:i:s')
         ];
         
-        @file_put_contents($file, json_encode($jsonData, JSON_PRETTY_PRINT));
+        // Coba berbagai lokasi penyimpanan dengan prioritas
+        $locations = [
+            __DIR__ . '/data/last_farmasi.json',
+            __DIR__ . '/last_farmasi.json',
+            sys_get_temp_dir() . '/last_farmasi.json',
+            '/tmp/last_farmasi.json'
+        ];
+        
+        foreach ($locations as $file) {
+            $dir = dirname($file);
+            
+            // Buat direktori jika belum ada
+            if (!file_exists($dir)) {
+                $mkdir_result = @mkdir($dir, 0777, true);
+                if (!$mkdir_result) {
+                    $error_log[] = "Failed to create dir: $dir";
+                    continue;
+                }
+            }
+            
+            // Coba tulis file dengan exclusive lock
+            $bytes = @file_put_contents(
+                $file, 
+                json_encode($jsonData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE),
+                LOCK_EX  // Exclusive lock untuk mencegah race condition
+            );
+            
+            if ($bytes !== false && $bytes > 0) {
+                // Set permission agar bisa dibaca semua proses
+                @chmod($file, 0666);
+                
+                // Verifikasi file bisa dibaca kembali
+                $verify = @file_get_contents($file);
+                if ($verify !== false) {
+                    $decoded = json_decode($verify, true);
+                    if ($decoded && isset($decoded['no_resep'])) {
+                        $file_saved = true;
+                        $file_path = $file;
+                        break; // Berhasil, keluar dari loop
+                    } else {
+                        $error_log[] = "JSON decode failed for: $file";
+                    }
+                } else {
+                    $error_log[] = "Cannot read back file: $file";
+                }
+            } else {
+                $error_log[] = "Cannot write to: $file";
+            }
+        }
     }
 
     header('Content-Type: application/json');
-    echo json_encode(['status' => 'ok', 'data' => $data_resep]);
+    echo json_encode([
+        'status' => 'ok', 
+        'data' => $data_resep,
+        'file_saved' => $file_saved,
+        'file_path' => $file_path,
+        'debug' => [
+            'time' => date('Y-m-d H:i:s'),
+            'no_resep' => $no_resep,
+            'locations_tried' => count($locations),
+            'errors' => $error_log
+        ]
+    ]);
     exit;
 }
 
@@ -388,11 +441,24 @@ function panggil(no_resep, nm_pasien, buttonElement) {
     })
     .then(r => r.json())
     .then(resp => {
+        console.log("=== RESPONSE FROM SERVER ===");
+        console.log(resp);
+        console.log("============================");
+        
         if (resp.status !== "ok") {
             alert("Gagal memanggil: " + resp.message);
             buttonElement.disabled = false;
             buttonElement.innerHTML = originalHTML;
             return;
+        }
+
+        // Cek apakah file berhasil disimpan
+        if (!resp.file_saved) {
+            console.warn("⚠️ WARNING: File tidak berhasil disimpan!");
+            console.warn("Error log:", resp.debug.errors);
+            // Tetap lanjut karena data sudah di session
+        } else {
+            console.log("✅ File berhasil disimpan di:", resp.file_path);
         }
 
         const data = resp.data;
@@ -414,9 +480,11 @@ function panggil(no_resep, nm_pasien, buttonElement) {
             bell.play().then(() => {
                 bell.addEventListener("ended", callback);
             }).catch(err => {
+                console.warn("Audio error, retry:", err);
                 if (retries > 0) {
                     setTimeout(() => playSoundWithRetry(callback, retries - 1), 500);
                 } else {
+                    console.log("Audio gagal, lanjut ke TTS");
                     callback();
                 }
             });
@@ -441,17 +509,29 @@ function panggil(no_resep, nm_pasien, buttonElement) {
             }
             
             utterance.onend = () => {
-                setTimeout(() => location.reload(), 1000);
+                console.log("🔊 TTS selesai, reload dalam 3 detik...");
+                console.log("⏱️ Memberi waktu untuk API ter-update...");
+                
+                // PENTING: Delay 3 detik untuk memberi waktu file ter-update
+                setTimeout(() => {
+                    console.log("🔄 Reloading page...");
+                    location.reload();
+                }, 3000); // 3 detik delay
             };
             
-            utterance.onerror = () => {
-                setTimeout(() => location.reload(), 1000);
+            utterance.onerror = (e) => {
+                console.error("TTS error:", e);
+                // Tetap reload meski TTS error
+                setTimeout(() => {
+                    location.reload();
+                }, 3000);
             };
             
             window.speechSynthesis.cancel();
             window.speechSynthesis.speak(utterance);
         });
         
+        // Update localStorage
         const today = "'.$filter_tanggal.'";
         let calledPatients = JSON.parse(localStorage.getItem("calledFarmasi_" + today) || "{}");
         
@@ -465,6 +545,7 @@ function panggil(no_resep, nm_pasien, buttonElement) {
         markAsCalled(no_resep, calledPatients[no_resep]);
     })
     .catch(err => {
+        console.error("❌ Fetch error:", err);
         alert("Koneksi gagal. Silakan coba lagi.");
         buttonElement.disabled = false;
         buttonElement.innerHTML = originalHTML;

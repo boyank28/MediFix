@@ -611,10 +611,10 @@ body {
   font-weight: 800;
 }
 
-/* Print Styles */
+/* Print Styles - Custom Size 7.5cm x 11cm */
 @media print {
   @page {
-    size: 80mm auto;
+    size: 7.5cm 11cm;
     margin: 0;
   }
   
@@ -629,10 +629,12 @@ body {
   .print-area {
     display: block !important;
     position: static !important;
-    width: 80mm !important;
+    width: 7.5cm !important;
+    height: 11cm !important;
     padding: 0 !important;
     margin: 0 !important;
     background: white !important;
+    overflow: hidden !important;
   }
   
   .print-area * {
@@ -804,87 +806,89 @@ body {
   
 </div>
 
-<!-- Print Area (Karcis Thermal 80mm) -->
+<!-- Print Area (Karcis Custom 7.5cm x 11cm) -->
 <?php if (!empty($successMsg)): ?>
 <div class="print-area" id="printArea">
-  <div style="width:80mm; padding:10mm 5mm; font-family:'Courier New',monospace; background:white; text-align:center;">
+  <div style="width:7.5cm; height:11cm; padding:0.4cm 0.3cm; font-family:'Courier New',monospace; background:white; display:flex; flex-direction:column; justify-content:space-between;">
+    
     <!-- Header RS -->
-    <div style="margin-bottom:8px;">
-      <h2 style="font-size:20px; font-weight:900; margin:0 0 6px 0; color:#000; text-transform:uppercase; letter-spacing:0.5px;">
+    <div style="text-align:center; margin-bottom:0.2cm;">
+      <h2 style="font-size:16px; font-weight:900; margin:0 0 0.15cm 0; color:#000; text-transform:uppercase; letter-spacing:0.3px; line-height:1.2;">
         <?= htmlspecialchars($setting['nama_instansi']) ?>
       </h2>
-      <p style="font-size:11px; margin:3px 0; color:#333; line-height:1.4;">
+      <p style="font-size:8.5px; margin:0.1cm 0; color:#333; line-height:1.3;">
         <?= htmlspecialchars($setting['alamat_instansi']) ?>
       </p>
-      <p style="font-size:11px; margin:3px 0; color:#333;">
+      <p style="font-size:8.5px; margin:0.05cm 0; color:#333; line-height:1.2;">
         <?= htmlspecialchars($setting['kabupaten']) ?>, <?= htmlspecialchars($setting['propinsi']) ?>
       </p>
-      <p style="font-size:11px; margin:3px 0; color:#333;">
-        Telp: <?= htmlspecialchars($setting['kontak']) ?> | <?= htmlspecialchars($setting['email']) ?>
+      <p style="font-size:8px; margin:0.05cm 0; color:#333; line-height:1.2;">
+        Telp: <?= htmlspecialchars($setting['kontak']) ?>
+      </p>
+      <p style="font-size:8px; margin:0.05cm 0; color:#333; line-height:1.2;">
+        Email: <?= htmlspecialchars($setting['email']) ?>
       </p>
     </div>
     
-    <div style="border-top:2px dashed #333; margin:10px 0;"></div>
+    <div style="border-top:1.5px dashed #333; margin:0.2cm 0;"></div>
     
-    <!-- Nomor Antrian -->
-    <div style="margin:15px 0;">
-      <p style="font-size:14px; font-weight:700; margin:0 0 8px 0; color:#000; text-transform:uppercase; letter-spacing:1px;">
+    <!-- Nomor Antrian - Highlighted -->
+    <div style="text-align:center; margin:0.3cm 0;">
+      <p style="font-size:11px; font-weight:700; margin:0 0 0.2cm 0; color:#000; text-transform:uppercase; letter-spacing:0.5px;">
         Nomor Antrian Anda
       </p>
-      <div style="background:#667eea; padding:20px; border-radius:12px; margin:10px 0; box-shadow:0 4px 8px rgba(0,0,0,0.2);">
-        <h1 style="font-size:80px; margin:0; font-weight:900; color:#fff; letter-spacing:5px; text-shadow:0 4px 10px rgba(0,0,0,0.3);">
+      <div style="background:linear-gradient(135deg, #667eea, #764ba2); padding:0.4cm 0.3cm; border-radius:8px; margin:0.15cm 0; box-shadow:0 2px 6px rgba(0,0,0,0.15);">
+        <h1 style="font-size:56px; margin:0; font-weight:900; color:#fff; letter-spacing:4px; text-shadow:0 3px 8px rgba(0,0,0,0.3);">
           <?= htmlspecialchars($successMsg) ?>
         </h1>
       </div>
-    </div>
-    
-    <div style="margin:12px 0;">
-      <p style="font-size:15px; font-weight:800; margin:5px 0; color:#000; text-transform:uppercase;">
-        ANTRIAN PENDAFTARAN / ADMISI
+      <p style="font-size:12px; font-weight:800; margin:0.2cm 0; color:#000; text-transform:uppercase; letter-spacing:0.5px;">
+        ANTRIAN PENDAFTARAN
       </p>
     </div>
     
-    <div style="border-top:2px dashed #333; margin:10px 0;"></div>
+    <div style="border-top:1.5px dashed #333; margin:0.2cm 0;"></div>
     
     <!-- Detail Waktu -->
-    <div style="margin:12px 0; text-align:left; padding:0 10px;">
-      <p style="font-size:12px; margin:5px 0; color:#333;">
+    <div style="margin:0.15cm 0; text-align:left; padding:0 0.1cm;">
+      <p style="font-size:9.5px; margin:0.1cm 0; color:#333; line-height:1.3;">
         <strong>Tanggal:</strong> <?= date('d F Y') ?>
       </p>
-      <p style="font-size:12px; margin:5px 0; color:#333;">
+      <p style="font-size:9.5px; margin:0.1cm 0; color:#333; line-height:1.3;">
         <strong>Waktu:</strong> <?= date('H:i:s') ?> WIB
       </p>
     </div>
     
-    <div style="border-top:2px dashed #333; margin:10px 0;"></div>
+    <div style="border-top:1.5px dashed #333; margin:0.2cm 0;"></div>
     
-    <!-- Pesan -->
-    <div style="margin:12px 0;">
-      <p style="font-size:11px; margin:8px 0; color:#333; line-height:1.5;">
+    <!-- Instruksi -->
+    <div style="margin:0.15cm 0; text-align:center;">
+      <p style="font-size:8.5px; margin:0.15cm 0; color:#333; line-height:1.4;">
         <strong>Terima kasih</strong> telah mengambil nomor antrian.
       </p>
-      <p style="font-size:11px; margin:8px 0; color:#333; line-height:1.5;">
-        Silakan menunggu panggilan di ruang tunggu pendaftaran.
+      <p style="font-size:8.5px; margin:0.1cm 0; color:#333; line-height:1.4;">
+        Silakan menunggu panggilan di ruang tunggu.
       </p>
-      <p style="font-size:11px; margin:8px 0; color:#333; line-height:1.5;">
-        Mohon siapkan dokumen identitas (KTP/KK) dan kartu BPJS/asuransi (jika ada).
+      <p style="font-size:8px; margin:0.1cm 0; color:#555; line-height:1.3;">
+        Siapkan: KTP/KK & Kartu BPJS (jika ada)
       </p>
     </div>
     
-    <div style="border-top:1px dashed #ccc; margin:10px 0;"></div>
+    <div style="border-top:1px dashed #ccc; margin:0.15cm 0;"></div>
     
     <!-- Footer Karcis -->
-    <div style="margin:8px 0;">
-      <p style="font-size:9px; margin:5px 0; color:#666;">
-        Dicetak: <?= date('d/m/Y H:i:s') ?> | Sistem MediFix v2.0
+    <div style="margin:0.1cm 0; text-align:center;">
+      <p style="font-size:7.5px; margin:0.08cm 0; color:#666; line-height:1.2;">
+        Dicetak: <?= date('d/m/Y H:i:s') ?>
       </p>
-      <p style="font-size:9px; margin:5px 0; color:#666;">
-        Support: 082177846209 | www.medifix.id
+      <p style="font-size:7.5px; margin:0.08cm 0; color:#666; line-height:1.2;">
+        Sistem MediFix v2.0 | Support: 082177846209
       </p>
-      <p style="font-size:10px; margin:8px 0; font-weight:700; color:#000;">
-        SELAMAT BEROBAT - SEMOGA LEKAS SEMBUH
+      <p style="font-size:9px; margin:0.12cm 0 0 0; font-weight:700; color:#000; letter-spacing:0.3px;">
+        SELAMAT BEROBAT
       </p>
     </div>
+    
   </div>
 </div>
 <?php endif; ?>
