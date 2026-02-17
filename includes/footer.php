@@ -32,7 +32,7 @@
                   <li><strong>Aplikasi GRATIS</strong> untuk pengguna SIMRS Khanza</li>
                   <li><strong>DILARANG</strong> diperjualbelikan</li>
                   <li><strong>Open Source</strong> boleh dikembangkan</li>
-                  <li><strong>Table</strong>: antrian_wira, loket_admisi_wira</li>
+                  <li><strong>Table</strong>: antrian_wira, loket_admisi_wira, simpan_antrian_poli_wira, simpan_antrian_farmasi_wira</li>
                 </ul>
               </div>
             </div>
