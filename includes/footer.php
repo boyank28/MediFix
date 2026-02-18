@@ -74,7 +74,7 @@
               </div>
               <div class="box-body text-center">
                 <p style="margin: 0; font-size: 13px;">
-                  <strong>Dikembangkan dengan ❤️ oleh:</strong><br>
+                  <strong>Dikembangkan oleh:</strong><br>
                   <span style="font-size: 16px;"><strong>M. Wira Satria Buana, S.Kom</strong></span><br>
                   <i class="fa fa-whatsapp" style="color: #25D366;"></i> <strong>082177846209</strong><br>
                   <small>© 2024 MediFix Apps</small>
