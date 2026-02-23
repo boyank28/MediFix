@@ -11,322 +11,722 @@ $excluded_poli = ['IGDK','PL013','PL014','PL015','PL016','PL017','U0022','U0030'
 $excluded_list = "'" . implode("','", $excluded_poli) . "'";
 
 try {
-    // === PANGGILAN TERBARU DARI DB ===
-    $sqlCall = "
-        SELECT no_rawat, no_rkm_medis, no_antrian, nm_pasien, nm_poli,
-               nm_dokter, kd_poli, kd_dokter, jml_panggil,
-               UNIX_TIMESTAMP(updated_at) AS ts
-        FROM simpan_antrian_poli_wira
-        WHERE tgl_panggil = ?
-    ";
-    $paramsCall = [$today];
-    if (!empty($poli))   { $sqlCall .= " AND kd_poli = ?";   $paramsCall[] = $poli; }
-    if (!empty($dokter)) { $sqlCall .= " AND kd_dokter = ?"; $paramsCall[] = $dokter; }
-    $sqlCall .= " ORDER BY updated_at DESC LIMIT 1";
-
-    $stmtCall = $pdo_simrs->prepare($sqlCall);
-    $stmtCall->execute($paramsCall);
-    $current_call = $stmtCall->fetch(PDO::FETCH_ASSOC) ?: null;
-
-    // === SEMUA DATA ANTRIAN HARI INI ===
-    $sqlQ = "
-        SELECT r.no_reg, r.kd_poli, r.kd_dokter, r.no_rawat,
-               ps.nm_pasien, p.nm_poli, d.nm_dokter, r.stts
+    // === DATA SEMUA DOKTER + JAM POLI HARI INI ===
+    $sqlDokter = "
+        SELECT DISTINCT
+            r.kd_dokter,
+            r.kd_poli,
+            d.nm_dokter,
+            p.nm_poli,
+            NULL AS jam_mulai,
+            NULL AS jam_selesai
         FROM reg_periksa r
-        LEFT JOIN pasien     ps ON r.no_rkm_medis = ps.no_rkm_medis
-        LEFT JOIN poliklinik p  ON r.kd_poli      = p.kd_poli
-        LEFT JOIN dokter     d  ON r.kd_dokter    = d.kd_dokter
-        WHERE r.tgl_registrasi = ? AND r.kd_poli NOT IN ($excluded_list)
+        LEFT JOIN dokter     d  ON r.kd_dokter = d.kd_dokter
+        LEFT JOIN poliklinik p  ON r.kd_poli   = p.kd_poli
+        WHERE r.tgl_registrasi = ?
+          AND r.kd_poli NOT IN ($excluded_list)
     ";
-    $paramsQ = [$today];
-    if (!empty($poli))   { $sqlQ .= " AND r.kd_poli = ?";   $paramsQ[] = $poli; }
-    if (!empty($dokter)) { $sqlQ .= " AND r.kd_dokter = ?"; $paramsQ[] = $dokter; }
-    $sqlQ .= " ORDER BY r.no_reg+0 ASC";
+    $paramsDokter = [$today];
+    if (!empty($poli))   { $sqlDokter .= " AND r.kd_poli = ?";   $paramsDokter[] = $poli; }
+    if (!empty($dokter)) { $sqlDokter .= " AND r.kd_dokter = ?"; $paramsDokter[] = $dokter; }
+    $sqlDokter .= " ORDER BY p.nm_poli, d.nm_dokter";
 
-    $stmtQ = $pdo_simrs->prepare($sqlQ);
-    $stmtQ->execute($paramsQ);
-    $data = $stmtQ->fetchAll(PDO::FETCH_ASSOC);
+    $stmtDokter = $pdo_simrs->prepare($sqlDokter);
+    $stmtDokter->execute($paramsDokter);
+    $daftar_dokter = $stmtDokter->fetchAll(PDO::FETCH_ASSOC);
 
-    $total    = count($data);
-    $sudah    = count(array_filter($data, fn($d) => $d['stts'] === 'Sudah'));
-    $menunggu = count(array_filter($data, fn($d) => in_array($d['stts'], ['Menunggu','Belum'])));
+    // === DATA ANTRIAN PER DOKTER ===
+    $dokter_data = [];
+    foreach ($daftar_dokter as $dok) {
+        $kd_d = $dok['kd_dokter'];
+        $kd_p = $dok['kd_poli'];
 
-    // Nama poli/dokter untuk header
-    $nama_poli   = $data[0]['nm_poli']   ?? '';
-    $nama_dokter = $data[0]['nm_dokter'] ?? '';
+        // Ambil antrian pasien
+        $sqlQ = "
+            SELECT r.no_reg, r.no_rawat, r.kd_poli, r.stts,
+                   ps.nm_pasien
+            FROM reg_periksa r
+            LEFT JOIN pasien ps ON r.no_rkm_medis = ps.no_rkm_medis
+            WHERE r.tgl_registrasi = ?
+              AND r.kd_dokter = ?
+              AND r.kd_poli = ?
+            ORDER BY r.no_reg+0 ASC
+        ";
+        $stmtQ = $pdo_simrs->prepare($sqlQ);
+        $stmtQ->execute([$today, $kd_d, $kd_p]);
+        $pasien_list = $stmtQ->fetchAll(PDO::FETCH_ASSOC);
 
-    function sensorNama($nama) {
-        return implode(' ', array_map(fn($k) => mb_substr($k,0,1).str_repeat('*', max(0, mb_strlen($k)-1)), explode(' ', $nama)));
+        // Panggilan terakhir
+        $sqlCall = "
+            SELECT no_antrian, nm_pasien, no_rawat, jml_panggil
+            FROM simpan_antrian_poli_wira
+            WHERE tgl_panggil = ? AND kd_dokter = ? AND kd_poli = ?
+            ORDER BY updated_at DESC LIMIT 1
+        ";
+        $stmtCall = $pdo_simrs->prepare($sqlCall);
+        $stmtCall->execute([$today, $kd_d, $kd_p]);
+        $current_call = $stmtCall->fetch(PDO::FETCH_ASSOC) ?: null;
+
+        $total    = count($pasien_list);
+        $sudah    = count(array_filter($pasien_list, fn($p) => $p['stts'] === 'Sudah'));
+        $menunggu = count(array_filter($pasien_list, fn($p) => in_array($p['stts'], ['Menunggu','Belum'])));
+
+        $dokter_data[] = [
+            'kd_dokter'    => $kd_d,
+            'kd_poli'      => $kd_p,
+            'nm_dokter'    => $dok['nm_dokter'],
+            'nm_poli'      => $dok['nm_poli'],
+            'jam_mulai'    => $dok['jam_mulai'],
+            'jam_selesai'  => $dok['jam_selesai'],
+            'pasien'       => $pasien_list,
+            'current_call' => $current_call,
+            'total'        => $total,
+            'sudah'        => $sudah,
+            'menunggu'     => $menunggu,
+        ];
     }
+
+    // Global summary
+    $globalTotal    = array_sum(array_column($dokter_data, 'total'));
+    $globalSudah    = array_sum(array_column($dokter_data, 'sudah'));
+    $globalMenunggu = array_sum(array_column($dokter_data, 'menunggu'));
 
 } catch (PDOException $e) {
     die("Gagal mengambil data: " . $e->getMessage());
 }
+
+
 ?>
 <!doctype html>
 <html lang="id">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Display Antrian Poliklinik - MediFix</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<title>Display Antrian Poliklinik</title>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Inter',sans-serif;background:linear-gradient(135deg,#1e3c72 0%,#2a5298 50%,#7e22ce 100%);color:#fff;overflow:hidden;height:100vh;display:flex;flex-direction:column}
+* { margin: 0; padding: 0; box-sizing: border-box; }
 
-.bg-animated{position:fixed;width:100%;height:100%;overflow:hidden;z-index:0;pointer-events:none}
-.bg-animated::before,.bg-animated::after{content:'';position:absolute;border-radius:50%;opacity:.05}
-.bg-animated::before{width:800px;height:800px;background:radial-gradient(circle,#fff 0%,transparent 70%);top:-400px;right:-200px;animation:float1 15s ease-in-out infinite}
-.bg-animated::after{width:600px;height:600px;background:radial-gradient(circle,#fff 0%,transparent 70%);bottom:-300px;left:-200px;animation:float2 20s ease-in-out infinite}
-@keyframes float1{0%,100%{transform:translate(0,0) rotate(0deg)}50%{transform:translate(50px,-50px) rotate(10deg)}}
-@keyframes float2{0%,100%{transform:translate(0,0) rotate(0deg)}50%{transform:translate(-30px,30px) rotate(-10deg)}}
-
-.header{background:rgba(255,255,255,.1);backdrop-filter:blur(10px);border-bottom:2px solid rgba(255,255,255,.2);padding:20px 40px;position:relative;z-index:10;box-shadow:0 4px 20px rgba(0,0,0,.2)}
-.header-content{display:flex;justify-content:space-between;align-items:center}
-.header-left h1{font-size:2rem;font-weight:900;margin:0;text-shadow:2px 2px 4px rgba(0,0,0,.3)}
-.header-subtitle{font-size:1.2rem;font-weight:600;opacity:.9;margin-top:5px}
-.header-right{text-align:right}
-.live-date{font-size:1rem;font-weight:600;opacity:.9}
-.live-clock{font-size:2.5rem;font-weight:900;margin-top:5px;text-shadow:2px 2px 4px rgba(0,0,0,.3)}
-
-.main-content{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:30px;padding:30px 40px;position:relative;z-index:1;overflow:hidden}
-
-/* Panel kiri — panggilan aktif */
-.panel-calling{background:rgba(255,255,255,.15);backdrop-filter:blur(15px);border-radius:30px;padding:40px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.3);border:2px solid rgba(255,255,255,.2);position:relative;overflow:hidden;transition:border-color .4s,box-shadow .4s}
-.panel-calling::before{content:'';position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(circle,rgba(255,255,255,.1) 0%,transparent 70%);animation:rotate 20s linear infinite}
-@keyframes rotate{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-
-.calling-label{font-size:1.4rem;font-weight:700;opacity:.9;margin-bottom:20px;position:relative;z-index:1}
-.badge-new{display:inline-block;background:#ef4444;color:#fff;padding:3px 10px;border-radius:20px;font-size:.85rem;margin-left:8px;animation:blinkBadge 1.2s ease-in-out infinite}
-@keyframes blinkBadge{0%,100%{opacity:1}50%{opacity:.4}}
-.calling-number{font-size:7.5rem;font-weight:900;color:#fbbf24;text-shadow:4px 4px 8px rgba(0,0,0,.5);margin:20px 0;position:relative;z-index:1;animation:pulse 2s ease-in-out infinite}
-@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
-.calling-name{font-size:2rem;font-weight:700;margin:15px 0;position:relative;z-index:1}
-.calling-poli{font-size:1.3rem;font-weight:600;opacity:.9;position:relative;z-index:1}
-.calling-doctor{font-size:1.1rem;font-weight:600;color:#fbbf24;margin-top:10px;position:relative;z-index:1}
-.calling-count{font-size:.95rem;opacity:.75;margin-top:8px;position:relative;z-index:1}
-.no-calling{font-size:6rem;color:rgba(255,255,255,.3);font-weight:900}
-.no-calling-text{font-size:1.5rem;opacity:.5;margin-top:20px}
-.sync-dot{width:10px;height:10px;border-radius:50%;background:#10b981;display:inline-block;margin-left:8px;animation:blinkDot 2s ease-in-out infinite;vertical-align:middle}
-@keyframes blinkDot{0%,100%{opacity:1}50%{opacity:.3}}
-
-/* Alert saat ada panggilan baru */
-@keyframes callAlert{
-  0%,100%{box-shadow:0 8px 32px rgba(0,0,0,.3);border-color:rgba(255,255,255,.2)}
-  50%{box-shadow:0 8px 32px rgba(251,191,36,.9),0 0 70px rgba(251,191,36,.7);border-color:#fbbf24}
+:root {
+    --primary: #00d4aa;
+    --secondary: #0088ff;
+    --success: #00e676;
+    --danger: #ff5252;
+    --warning: #fbbf24;
+    --dark: #0a1929;
+    --card-bg: rgba(255,255,255,0.98);
+    --shadow: rgba(10,25,41,0.10);
 }
-.panel-calling.alert-calling{animation:callAlert 1.2s ease-in-out 4}
 
-/* Panel kanan — daftar antrian */
-.panel-queue{background:rgba(255,255,255,.15);backdrop-filter:blur(15px);border-radius:30px;padding:30px;box-shadow:0 8px 32px rgba(0,0,0,.3);border:2px solid rgba(255,255,255,.2);display:flex;flex-direction:column;overflow:hidden}
-.queue-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;padding-bottom:15px;border-bottom:2px solid rgba(255,255,255,.2)}
-.queue-title{font-size:1.5rem;font-weight:800}
-.queue-stats{display:flex;gap:12px}
-.stat-badge{background:rgba(255,255,255,.2);padding:5px 12px;border-radius:15px;font-size:.9rem;font-weight:700}
-.queue-list{flex:1;overflow-y:auto;padding-right:8px}
-.queue-list::-webkit-scrollbar{width:7px}
-.queue-list::-webkit-scrollbar-track{background:rgba(255,255,255,.1);border-radius:10px}
-.queue-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,.3);border-radius:10px}
-.queue-item{display:grid;grid-template-columns:.6fr 1.3fr 1fr;gap:15px;align-items:center;background:rgba(255,255,255,.2);border-radius:15px;padding:15px 20px;margin-bottom:12px;transition:all .3s;border-left:4px solid transparent}
-.queue-item.active{background:rgba(251,191,36,.3);border-left-color:#fbbf24;animation:blink 2s ease-in-out infinite}
-.queue-item.done{opacity:.5;background:rgba(16,185,129,.2);border-left-color:#10b981}
-@keyframes blink{0%,100%{opacity:1}50%{opacity:.7}}
-.queue-number{font-size:1.8rem;font-weight:900;color:#fbbf24}
-.queue-name{font-size:1.3rem;font-weight:600}
-.queue-poli{font-size:1.1rem;opacity:.9;text-align:right}
-.queue-empty{text-align:center;padding:60px 20px;opacity:.5}
-.queue-empty i{font-size:4rem;margin-bottom:20px;opacity:.3}
+html, body {
+    height: 100vh;
+    overflow: hidden;
+    font-family: 'DM Sans', sans-serif;
+    background: linear-gradient(160deg, #0a1929 0%, #132f4c 50%, #1e4976 100%);
+    position: relative;
+}
 
-.footer{background:rgba(255,255,255,.1);backdrop-filter:blur(10px);border-top:2px solid rgba(255,255,255,.2);padding:15px 40px;text-align:center;font-size:1rem;font-weight:600;position:relative;z-index:10}
+body::before {
+    content: '';
+    position: absolute;
+    top: -50%; right: -20%;
+    width: 80%; height: 80%;
+    background: radial-gradient(circle, rgba(0,212,170,0.13) 0%, transparent 70%);
+    border-radius: 50%;
+    animation: bgPulse 18s ease-in-out infinite;
+    pointer-events: none;
+}
+body::after {
+    content: '';
+    position: absolute;
+    bottom: -30%; left: -15%;
+    width: 60%; height: 60%;
+    background: radial-gradient(circle, rgba(0,136,255,0.1) 0%, transparent 70%);
+    border-radius: 50%;
+    animation: bgPulse 22s ease-in-out infinite reverse;
+    pointer-events: none;
+}
+@keyframes bgPulse { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.12);opacity:.7} }
+
+/* =========== HEADER =========== */
+.header {
+    position: relative; z-index: 10;
+    background: rgba(10,25,41,0.95);
+    backdrop-filter: blur(20px);
+    border-bottom: 3px solid var(--primary);
+    padding: 1.4vh 3vw;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 2vw;
+    align-items: center;
+    box-shadow: 0 4px 30px rgba(0,212,170,0.2);
+}
+
+.brand-section { display: flex; align-items: center; gap: 1.2vw; }
+
+.brand-icon {
+    width: 4.5vw; height: 4.5vw;
+    min-width: 52px; min-height: 52px; max-width: 72px; max-height: 72px;
+    background: linear-gradient(135deg, var(--primary) 0%, #00aa88 100%);
+    border-radius: 1vw;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 8px 24px rgba(0,212,170,0.4);
+}
+.brand-icon i { font-size: 2.4vw; color: white; }
+
+.brand-text h1 {
+    font-family: 'Archivo Black', sans-serif;
+    font-size: 2vw; color: white; margin: 0;
+    line-height: 1; text-transform: uppercase; letter-spacing: -0.02em;
+    background: linear-gradient(135deg, #fff 0%, var(--primary) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.brand-text p {
+    font-size: .9vw; color: rgba(255,255,255,.7);
+    margin: .3vh 0 0 0; font-weight: 600; letter-spacing: .05em;
+}
+
+.header-stats { display: flex; gap: 1.2vw; justify-content: center; }
+
+.header-stat-item {
+    display: flex; align-items: center; gap: .8vw;
+    padding: .9vh 1.3vw;
+    background: rgba(255,255,255,.08);
+    border-radius: .8vw;
+    border: 1px solid rgba(255,255,255,.1);
+}
+.header-stat-icon {
+    width: 2.4vw; height: 2.4vw;
+    min-width: 32px; min-height: 32px;
+    border-radius: .5vw;
+    display: flex; align-items: center; justify-content: center;
+}
+.header-stat-icon.total   { background: linear-gradient(135deg,var(--secondary),#0066cc); }
+.header-stat-icon.avail   { background: linear-gradient(135deg,var(--success),#00c853); }
+.header-stat-icon.occ     { background: linear-gradient(135deg,var(--danger),#d32f2f); }
+.header-stat-icon.waiting { background: linear-gradient(135deg,var(--warning),#e09000); }
+.header-stat-icon i { font-size: 1.2vw; color: white; }
+.header-stat-label { font-size: .72vw; color: rgba(255,255,255,.6); font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+.header-stat-value { font-family: 'Archivo Black', sans-serif; font-size: 1.8vw; color: white; line-height: 1; }
+
+.header-info { text-align: right; }
+.live-time {
+    font-family: 'Archivo Black', sans-serif;
+    font-size: 2.8vw; color: var(--primary);
+    line-height: 1; letter-spacing: -.02em;
+    text-shadow: 0 0 30px rgba(0,212,170,.6);
+}
+.live-date { font-size: .9vw; color: rgba(255,255,255,.8); font-weight: 600; margin-top: .3vh; }
+
+/* =========== MAIN =========== */
+.main-content {
+    position: relative; z-index: 1;
+    padding: 2vh 3vw 9vh 3vw;
+    height: calc(100vh - 12vh);
+    overflow: hidden;
+}
+
+/* Paging container */
+.page-wrapper { height: 100%; position: relative; }
+
+.page-slide {
+    display: none;
+    height: 100%;
+    animation: fadeSlide .5s ease;
+}
+.page-slide.active { display: flex; flex-direction: column; }
+@keyframes fadeSlide {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Dokter grid auto layout */
+.dokter-grid {
+    display: grid;
+    gap: 1.5vw;
+    width: 100%;
+    height: 100%;
+    grid-template-columns: repeat(var(--cols, 3), 1fr);
+    grid-auto-rows: 1fr;
+}
+
+/* =========== KARTU DOKTER =========== */
+.dokter-card {
+    background: var(--card-bg);
+    border-radius: 1.2vw;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 4px 20px var(--shadow);
+    border: 2px solid transparent;
+    transition: border-color .3s, box-shadow .3s;
+    height: 100%;
+    min-height: 0;
+}
+.dokter-card.has-call {
+    border-color: var(--warning);
+    box-shadow: 0 4px 30px rgba(251,191,36,.4);
+    animation: cardGlow 2s ease-in-out infinite;
+}
+@keyframes cardGlow {
+    0%,100%{box-shadow:0 4px 20px var(--shadow)}
+    50%{box-shadow:0 6px 35px rgba(251,191,36,.5)}
+}
+
+/* Card header (dokter info) */
+.card-head {
+    padding: 1vh 1.2vw .8vh;
+    background: linear-gradient(135deg, #0a1929 0%, #132f4c 100%);
+    display: flex;
+    align-items: flex-start;
+    gap: .8vw;
+}
+.dokter-avatar {
+    width: 2.8vw; height: 2.8vw;
+    min-width: 36px; min-height: 36px; max-width: 48px; max-height: 48px;
+    background: linear-gradient(135deg, var(--primary), #0088ff);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+}
+.dokter-avatar i { font-size: 1.4vw; color: white; }
+
+.card-head-info { flex: 1; min-width: 0; }
+.nm-dokter {
+    font-family: 'Archivo Black', sans-serif;
+    font-size: 1vw; color: white; line-height: 1.2;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.nm-poli { font-size: .78vw; color: var(--primary); font-weight: 600; margin-top: .2vh; }
+.jam-poli {
+    font-size: .74vw; color: rgba(255,255,255,.65);
+    display: flex; align-items: center; gap: .3vw; margin-top: .2vh;
+}
+.jam-poli i { color: var(--warning); }
+
+/* Now serving badge */
+.now-serving {
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+    padding: .8vh 1.2vw;
+    display: flex; align-items: center;
+    gap: 1.2vw;
+}
+.ns-left { display: flex; flex-direction: column; flex-shrink: 0; }
+.ns-label { font-size: .72vw; font-weight: 700; color: #78350f; text-transform: uppercase; letter-spacing: .05em; margin-bottom: .1vh; }
+.ns-number {
+    font-family: 'Archivo Black', sans-serif;
+    font-size: 2.2vw; color: #1c1400; line-height: 1;
+    animation: numPulse 2s ease-in-out infinite;
+}
+@keyframes numPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.05)} }
+.ns-right { flex: 1; min-width: 0; }
+.ns-name { 
+    font-size: .95vw; font-weight: 800; color: #78350f; 
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ns-info { font-size: .72vw; color: #92400e; margin-top: .2vh; }
+.ns-empty {
+    background: rgba(10,25,41,.06);
+    padding: .7vh 1.2vw;
+    display: flex; align-items: center; gap: .4vw;
+    font-size: .78vw; color: rgba(0,0,0,.4); font-weight: 600;
+}
+
+/* Stats row */
+.card-stats {
+    display: flex;
+    border-bottom: 1px solid rgba(0,0,0,.07);
+}
+.cs-item {
+    flex: 1; text-align: center;
+    padding: .6vh .5vw;
+    border-right: 1px solid rgba(0,0,0,.07);
+}
+.cs-item:last-child { border-right: none; }
+.cs-val {
+    font-family: 'Archivo Black', sans-serif;
+    font-size: 1.3vw; line-height: 1;
+}
+.cs-val.total   { color: #0088ff; }
+.cs-val.sudah   { color: #00c853; }
+.cs-val.tunggu  { color: #ff5252; }
+.cs-label { font-size: .66vw; font-weight: 700; color: rgba(0,0,0,.45); text-transform: uppercase; margin-top: .2vh; }
+
+/* Patient list */
+.pasien-list { flex: 1; overflow-y: auto; padding: .4vh 0; }
+.pasien-list::-webkit-scrollbar { width: 4px; }
+.pasien-list::-webkit-scrollbar-track { background: transparent; }
+.pasien-list::-webkit-scrollbar-thumb { background: rgba(0,0,0,.15); border-radius: 4px; }
+
+.pasien-row {
+    display: grid;
+    grid-template-columns: 5.5vw 1fr 5.5vw;
+    gap: .8vw;
+    align-items: center;
+    padding: .6vh 1vw;
+    border-bottom: 1px solid rgba(0,0,0,.05);
+    transition: background .2s;
+}
+.pasien-row:last-child { border-bottom: none; }
+.pasien-row.active {
+    background: rgba(251,191,36,.15);
+}
+.pasien-row.done {
+    opacity: .45;
+    background: rgba(0,200,83,.06);
+}
+.pr-no {
+    font-family: 'Archivo Black', sans-serif;
+    font-size: .78vw; color: var(--dark);
+    white-space: nowrap;
+}
+.pr-no.active { color: #b45309; }
+.pr-nama { font-size: .8vw; font-weight: 600; color: #1a2e44; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pr-status {
+    font-size: .7vw; font-weight: 700;
+    text-align: right; text-transform: uppercase; letter-spacing: .03em;
+}
+.pr-status.waiting { color: #ff5252; }
+.pr-status.done    { color: #00c853; }
+.pr-status.active  { color: #d97706; }
+
+.no-pasien {
+    text-align: center; padding: 2vh 1vw;
+    color: rgba(0,0,0,.35); font-size: .85vw; font-weight: 600;
+}
+
+/* =========== PAGE DOT INDICATOR =========== */
+.page-dots {
+    position: fixed; bottom: 7.5vh; left: 50%; transform: translateX(-50%);
+    display: flex; gap: .6vw; z-index: 20;
+}
+.page-dot {
+    width: .7vw; height: .7vw; min-width: 8px; min-height: 8px;
+    border-radius: 50%;
+    background: rgba(255,255,255,.35);
+    transition: background .3s, transform .3s;
+}
+.page-dot.active { background: var(--primary); transform: scale(1.4); }
+
+/* =========== FOOTER / MARQUEE =========== */
+.footer {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 10;
+    background: rgba(10,25,41,0.95);
+    backdrop-filter: blur(20px);
+    border-top: 3px solid var(--primary);
+    padding: 1vh 0;
+    overflow: hidden;
+    box-shadow: 0 -4px 30px rgba(0,212,170,.2);
+}
+.marquee-content {
+    display: inline-flex; white-space: nowrap;
+    animation: marquee 50s linear infinite;
+    font-size: 1vw; font-weight: 600; color: white; gap: 4vw;
+}
+@keyframes marquee { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
+.mq-item { display: inline-flex; align-items: center; gap: .6vw; }
+.mq-item i { color: var(--primary); }
+.mq-dokter { color: #fff; font-weight: 700; }
+.mq-poli { color: var(--primary); }
+.mq-num { color: var(--warning); font-family: 'Archivo Black',sans-serif; }
+.mq-tunggu { color: #ff5252; }
+.mq-selesai { color: var(--success); }
+
+/* sync dot */
+.sync-dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: #10b981; display: inline-block; margin-left: 8px;
+    animation: syncBlink 2s ease-in-out infinite; vertical-align: middle;
+}
+@keyframes syncBlink { 0%,100%{opacity:1} 50%{opacity:.3} }
 </style>
 </head>
 <body>
-<div class="bg-animated"></div>
 
-<!-- HEADER -->
+<!-- ===== HEADER ===== -->
 <div class="header">
-  <div class="header-content">
-    <div class="header-left">
-      <h1><i class="bi bi-tv-fill"></i> DISPLAY ANTRIAN POLIKLINIK <span class="sync-dot" id="syncDot" title="Live sync aktif"></span></h1>
-      <div class="header-subtitle">
-        <i class="bi bi-hospital"></i>
-        <?= !empty($nama_poli) ? htmlspecialchars($nama_poli) . (!empty($nama_dokter) ? ' — '.htmlspecialchars($nama_dokter) : '') : 'Semua Poliklinik' ?>
-      </div>
+    <div class="brand-section">
+        <div class="brand-icon"><i class="bi bi-display-fill"></i></div>
+        <div class="brand-text">
+            <h1>Display Antrian Poliklinik <span class="sync-dot" id="syncDot"></span></h1>
+            <p>
+                <?php if (!empty($poli) && !empty($dokter_data)): ?>
+                    <?= htmlspecialchars($dokter_data[0]['nm_poli'] ?? '') ?>
+                <?php else: ?>
+                    Semua Poliklinik — RS Permata Hati
+                <?php endif; ?>
+            </p>
+        </div>
     </div>
-    <div class="header-right">
-      <div class="live-date" id="liveDate"></div>
-      <div class="live-clock" id="liveClock"></div>
+
+    <div class="header-stats">
+        <div class="header-stat-item">
+            <div class="header-stat-icon total"><i class="bi bi-person-lines-fill"></i></div>
+            <div>
+                <div class="header-stat-label">Total Pasien</div>
+                <div class="header-stat-value" id="globalTotal"><?= $globalTotal ?></div>
+            </div>
+        </div>
+        <div class="header-stat-item">
+            <div class="header-stat-icon avail"><i class="bi bi-check-circle-fill"></i></div>
+            <div>
+                <div class="header-stat-label">Selesai</div>
+                <div class="header-stat-value" id="globalSudah"><?= $globalSudah ?></div>
+            </div>
+        </div>
+        <div class="header-stat-item">
+            <div class="header-stat-icon waiting"><i class="bi bi-clock-history"></i></div>
+            <div>
+                <div class="header-stat-label">Menunggu</div>
+                <div class="header-stat-value" id="globalMenunggu"><?= $globalMenunggu ?></div>
+            </div>
+        </div>
+        <div class="header-stat-item">
+            <div class="header-stat-icon occ"><i class="bi bi-person-badge-fill"></i></div>
+            <div>
+                <div class="header-stat-label">Dokter Aktif</div>
+                <div class="header-stat-value"><?= count($dokter_data) ?></div>
+            </div>
+        </div>
     </div>
-  </div>
+
+    <div class="header-info">
+        <div class="live-time" id="liveTime">00:00:00</div>
+        <div class="live-date" id="liveDate">—</div>
+    </div>
 </div>
 
-<!-- MAIN -->
+<!-- ===== MAIN ===== -->
 <div class="main-content">
+    <div class="page-wrapper" id="pageWrapper">
+        <?php
+        // Tentukan kolom berdasar jumlah dokter
+        $jml = count($dokter_data);
+        if      ($jml <= 2) $cols = $jml ?: 1;
+        elseif  ($jml <= 4) $cols = 2;
+        elseif  ($jml <= 6) $cols = 3;
+        elseif  ($jml <= 9) $cols = 3;
+        else                $cols = 4;
 
-  <!-- Panel Kiri: Panggilan Aktif -->
-  <div class="panel-calling" id="panelCalling">
-    <?php if ($current_call): ?>
-      <div class="calling-label"><i class="bi bi-megaphone-fill"></i> NOMOR ANTRIAN DIPANGGIL <span class="badge-new">🔴 LIVE</span></div>
-      <div class="calling-number" id="callingNumber"><?= htmlspecialchars($current_call['no_antrian']) ?></div>
-      <div class="calling-name"><?= htmlspecialchars(sensorNama($current_call['nm_pasien'])) ?></div>
-      <div class="calling-poli"><i class="bi bi-geo-alt-fill"></i> Menuju <?= htmlspecialchars($current_call['nm_poli']) ?></div>
-      <?php if (!empty($current_call['nm_dokter'])): ?>
-      <div class="calling-doctor"><i class="bi bi-person-badge-fill"></i> <?= htmlspecialchars($current_call['nm_dokter']) ?></div>
-      <?php endif; ?>
-      <?php if ($current_call['jml_panggil'] > 1): ?>
-      <div class="calling-count"><i class="bi bi-arrow-repeat"></i> Dipanggil <?= $current_call['jml_panggil'] ?>x</div>
-      <?php endif; ?>
-    <?php else: ?>
-      <div class="no-calling"><i class="bi bi-hourglass-split"></i></div>
-      <div class="no-calling-text">Menunggu Panggilan</div>
-    <?php endif; ?>
-  </div>
-
-  <!-- Panel Kanan: Daftar Antrian -->
-  <div class="panel-queue">
-    <div class="queue-header">
-      <div class="queue-title"><i class="bi bi-list-ol"></i> Daftar Antrian</div>
-      <div class="queue-stats">
-        <div class="stat-badge"><i class="bi bi-people-fill"></i> Total: <?= $total ?></div>
-        <div class="stat-badge"><i class="bi bi-check-circle-fill"></i> Selesai: <?= $sudah ?></div>
-        <div class="stat-badge"><i class="bi bi-clock-history"></i> Tunggu: <?= $menunggu ?></div>
-      </div>
-    </div>
-    <div class="queue-list" id="queueList">
-      <?php if ($data): ?>
-        <?php foreach ($data as $row):
-          $no_ant   = $row['kd_poli'].'-'.str_pad($row['no_reg'], 2, '0', STR_PAD_LEFT);
-          $is_active = $current_call && $current_call['no_rawat'] === $row['no_rawat'];
-          $is_done   = $row['stts'] === 'Sudah';
-          $cls       = $is_active ? 'active' : ($is_done ? 'done' : '');
+        $per_page = ($cols <= 2) ? $cols * 2 : $cols * 2;
+        $pages    = array_chunk($dokter_data, $per_page);
         ?>
-        <div class="queue-item <?= $cls ?>" data-no-rawat="<?= htmlspecialchars($row['no_rawat']) ?>">
-          <div class="queue-number"><?= htmlspecialchars($no_ant) ?></div>
-          <div class="queue-name"><?= htmlspecialchars(sensorNama($row['nm_pasien'])) ?></div>
-          <div class="queue-poli"><?= htmlspecialchars($row['nm_poli']) ?></div>
+
+        <?php foreach ($pages as $pi => $page_dokter): ?>
+        <div class="page-slide <?= $pi === 0 ? 'active' : '' ?>"
+             style="grid-template-columns:1fr" id="slide-<?= $pi ?>">
+            <div class="dokter-grid" style="--cols:<?= $cols ?>">
+            <?php foreach ($page_dokter as $dok): ?>
+                <?php
+                    $cc         = $dok['current_call'];
+                    $has_call   = !empty($cc);
+                    $cardClass  = $has_call ? 'has-call' : '';
+                ?>
+                <div class="dokter-card <?= $cardClass ?>" data-kd-dokter="<?= htmlspecialchars($dok['kd_dokter']) ?>" data-kd-poli="<?= htmlspecialchars($dok['kd_poli']) ?>">
+
+                    <!-- Header kartu -->
+                    <div class="card-head">
+                        <div class="dokter-avatar"><i class="bi bi-person-badge-fill"></i></div>
+                        <div class="card-head-info">
+                            <div class="nm-dokter"><?= htmlspecialchars($dok['nm_dokter']) ?></div>
+                            <div class="nm-poli"><i class="bi bi-geo-alt-fill"></i> <?= htmlspecialchars($dok['nm_poli']) ?></div>
+                            <?php if (!empty($dok['jam_mulai'])): ?>
+                            <div class="jam-poli">
+                                <i class="bi bi-clock-fill"></i>
+                                <?= htmlspecialchars(substr($dok['jam_mulai'],0,5)) ?> – <?= htmlspecialchars(substr($dok['jam_selesai'],0,5)) ?>
+                            </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+
+                    <!-- Nomor dilayani -->
+                    <?php if ($has_call): ?>
+                    <div class="now-serving">
+                        <div class="ns-left">
+                            <div class="ns-label"><i class="bi bi-megaphone-fill"></i> Sedang Dilayani</div>
+                            <div class="ns-number"><?= htmlspecialchars($cc['no_antrian']) ?></div>
+                        </div>
+                        <div class="ns-right">
+                            <div class="ns-name"><?= htmlspecialchars($cc['nm_pasien']) ?></div>
+                            <?php if ($cc['jml_panggil'] > 1): ?>
+                            <div class="ns-info"><i class="bi bi-arrow-repeat"></i> Dipanggil <?= $cc['jml_panggil'] ?>x</div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <?php else: ?>
+                    <div class="ns-empty">
+                        <i class="bi bi-hourglass-split"></i> Menunggu Panggilan...
+                    </div>
+                    <?php endif; ?>
+
+                    <!-- Stats -->
+                    <div class="card-stats">
+                        <div class="cs-item">
+                            <div class="cs-val total"><?= $dok['total'] ?></div>
+                            <div class="cs-label">Total</div>
+                        </div>
+                        <div class="cs-item">
+                            <div class="cs-val tunggu"><?= $dok['menunggu'] ?></div>
+                            <div class="cs-label">Menunggu</div>
+                        </div>
+                        <div class="cs-item">
+                            <div class="cs-val sudah"><?= $dok['sudah'] ?></div>
+                            <div class="cs-label">Selesai</div>
+                        </div>
+                    </div>
+
+                    <!-- Daftar pasien -->
+                    <div class="pasien-list">
+                        <?php if (empty($dok['pasien'])): ?>
+                        <div class="no-pasien"><i class="bi bi-inbox"></i> Belum ada pasien</div>
+                        <?php else: ?>
+                        <?php foreach ($dok['pasien'] as $ps):
+                            $no_ant   = $dok['kd_poli'].'-'.str_pad($ps['no_reg'],2,'0',STR_PAD_LEFT);
+                            $is_active= $cc && $cc['no_rawat'] === $ps['no_rawat'];
+                            $is_done  = $ps['stts'] === 'Sudah';
+                            $rowCls   = $is_active ? 'active' : ($is_done ? 'done' : '');
+                            $stLabel  = $is_active ? 'Dipanggil' : ($is_done ? 'Selesai' : 'Menunggu');
+                            $stCls    = $is_active ? 'active' : ($is_done ? 'done' : 'waiting');
+                        ?>
+                        <div class="pasien-row <?= $rowCls ?>" data-no-rawat="<?= htmlspecialchars($ps['no_rawat']) ?>">
+                            <div class="pr-no <?= $is_active ? 'active' : '' ?>"><?= htmlspecialchars($no_ant) ?></div>
+                            <div class="pr-nama"><?= htmlspecialchars($ps['nm_pasien']) ?></div>
+                            <div class="pr-status <?= $stCls ?>"><?= $stLabel ?></div>
+                        </div>
+                        <?php endforeach; ?>
+                        <?php endif; ?>
+                    </div>
+
+                </div>
+            <?php endforeach; ?>
+            </div>
         </div>
         <?php endforeach; ?>
-      <?php else: ?>
-        <div class="queue-empty"><i class="bi bi-inbox"></i><div>Belum ada antrian hari ini</div></div>
-      <?php endif; ?>
-    </div>
-  </div>
 
+    </div><!-- /page-wrapper -->
+</div><!-- /main-content -->
+
+<!-- Page Dots -->
+<div class="page-dots" id="pageDots">
+    <?php foreach ($pages as $pi => $_): ?>
+    <div class="page-dot <?= $pi === 0 ? 'active' : '' ?>" id="dot-<?= $pi ?>"></div>
+    <?php endforeach; ?>
 </div>
 
-<!-- FOOTER -->
+<!-- Footer Marquee -->
 <div class="footer">
-  <i class="bi bi-hospital-fill"></i> MediFix — Sistem Antrian Poliklinik |
-  <i class="bi bi-calendar-check"></i> <?= date('d F Y') ?>
+    <div style="overflow:hidden">
+        <div class="marquee-content" id="marqueeContent">
+            <?php
+            $mqs = '';
+            foreach ($dokter_data as $dok) {
+                $calling = $dok['current_call'] ? 'No. ' . htmlspecialchars($dok['current_call']['no_antrian']) : 'Menunggu';
+                $mqs .= "<span class='mq-item'>
+                    <i class='bi bi-caret-right-fill'></i>
+                    <span class='mq-dokter'>" . htmlspecialchars($dok['nm_dokter']) . "</span>
+                    — <span class='mq-poli'>" . htmlspecialchars($dok['nm_poli']) . "</span>
+                    &nbsp;|&nbsp; Dilayani: <span class='mq-num'>$calling</span>
+                    &nbsp;|&nbsp; Menunggu: <span class='mq-tunggu'>{$dok['menunggu']}</span>
+                    &nbsp;|&nbsp; Selesai: <span class='mq-selesai'>{$dok['sudah']}</span>
+                </span>";
+            }
+            echo $mqs . $mqs;
+            ?>
+        </div>
+    </div>
 </div>
 
 <script>
-// ============================================================
-//  CLOCK
-// ============================================================
+/* ===== CLOCK ===== */
 function updateClock() {
-  const now  = new Date();
-  document.getElementById('liveClock').textContent = now.toLocaleTimeString('id-ID');
-  document.getElementById('liveDate').textContent  = now.toLocaleDateString('id-ID', {weekday:'long',day:'numeric',month:'long',year:'numeric'});
+    const now = new Date();
+    document.getElementById('liveTime').textContent = now.toLocaleTimeString('id-ID');
+    document.getElementById('liveDate').textContent = now.toLocaleDateString('id-ID', {
+        weekday:'long', day:'numeric', month:'long', year:'numeric'
+    });
 }
 setInterval(updateClock, 1000);
 updateClock();
 
-// ============================================================
-//  POLLING RINGAN — baca dari DB via get_current_call.php
-//  Setiap 2 detik, hanya kirim timestamp terakhir
-//  Tidak perlu reload halaman penuh
-// ============================================================
-const POLI    = '<?= addslashes($poli) ?>';
-const DOKTER  = '<?= addslashes($dokter) ?>';
-let lastTs    = <?= $current_call ? (int)$current_call['ts'] : 0 ?>;
-let lastNoAntrian = '<?= $current_call ? addslashes($current_call['no_antrian']) : '' ?>';
+/* ===== PAGING ===== */
+const slides = document.querySelectorAll('.page-slide');
+const dots   = document.querySelectorAll('.page-dot');
+let curPage  = 0;
+const POLI   = '<?= addslashes($poli) ?>';
+const DOKTER = '<?= addslashes($dokter) ?>';
 
-// Preload suara notifikasi
-const bellAudio = new Audio('sound/opening.mp3');
-bellAudio.preload = 'auto';
-bellAudio.load();
-
-function sensorNama(nama) {
-  return nama.split(' ').map(k => k.charAt(0) + '*'.repeat(Math.max(0, k.length - 1))).join(' ');
-}
-
-function renderCallingPanel(d) {
-  const panel = document.getElementById('panelCalling');
-  const count = d.jml_panggil > 1 ? `<div class="calling-count"><i class="bi bi-arrow-repeat"></i> Dipanggil ${d.jml_panggil}x</div>` : '';
-  const dok   = d.nm_dokter ? `<div class="calling-doctor"><i class="bi bi-person-badge-fill"></i> ${d.nm_dokter}</div>` : '';
-  panel.innerHTML = `
-    <div class="calling-label"><i class="bi bi-megaphone-fill"></i> NOMOR ANTRIAN DIPANGGIL <span class="badge-new">🔴 LIVE</span></div>
-    <div class="calling-number" id="callingNumber">${d.no_antrian}</div>
-    <div class="calling-name">${sensorNama(d.nm_pasien)}</div>
-    <div class="calling-poli"><i class="bi bi-geo-alt-fill"></i> Menuju ${d.nm_poli}</div>
-    ${dok}${count}
-  `;
-}
-
-function updateQueueHighlight(noRawat) {
-  document.querySelectorAll('.queue-item').forEach(el => {
-    if (el.dataset.noRawat === noRawat) {
-      el.classList.add('active');
-      el.classList.remove('done');
-      el.scrollIntoView({behavior:'smooth', block:'nearest'});
-    } else if (!el.classList.contains('done')) {
-      el.classList.remove('active');
-    }
-  });
-}
-
-function pollCall() {
-  const url = `get_current_call.php?poli=${encodeURIComponent(POLI)}&dokter=${encodeURIComponent(DOKTER)}&since=${lastTs}`;
-
-  fetch(url)
-    .then(r => r.json())
-    .then(data => {
-      // Sync dot tetap hijau = koneksi OK
-      document.getElementById('syncDot').style.background = '#10b981';
-
-      if (!data.has_call || !data.changed) return; // Tidak ada perubahan
-
-      lastTs = data.ts;
-
-      // Ada panggilan BARU
-      if (data.no_antrian !== lastNoAntrian) {
-        lastNoAntrian = data.no_antrian;
-
-        // Update panel
-        renderCallingPanel(data);
-
-        // Highlight baris di daftar
-        updateQueueHighlight(data.no_rawat);
-
-        // Animasi border kuning
-        const panel = document.getElementById('panelCalling');
-        panel.classList.remove('alert-calling');
-        void panel.offsetWidth; // force reflow
-        panel.classList.add('alert-calling');
-        setTimeout(() => panel.classList.remove('alert-calling'), 5000);
-
-        // Bunyi notifikasi di display (bukan suara TTS, hanya bel)
-        bellAudio.currentTime = 0;
-        bellAudio.play().catch(() => {});
-
-      } else {
-        // Nomor sama tapi jml_panggil bertambah — update counter saja
-        renderCallingPanel(data);
-      }
-    })
-    .catch(() => {
-      // Koneksi gagal — sync dot merah
-      document.getElementById('syncDot').style.background = '#ef4444';
+function showSlide(idx) {
+    slides.forEach((s,i) => {
+        s.classList.toggle('active', i === idx);
     });
+    dots.forEach((d,i) => {
+        d.classList.toggle('active', i === idx);
+    });
+    curPage = idx;
 }
 
-// Polling setiap 2 detik
-setInterval(pollCall, 2000);
+if (slides.length > 1) {
+    setInterval(() => {
+        showSlide((curPage + 1) % slides.length);
+    }, 8000);
+}
 
-// Full reload setiap 5 menit untuk refresh daftar antrian
+/* ===== POLLING LIVE CALL ===== */function pollCalls() {
+    fetch(`get_all_calls.php?poli=${encodeURIComponent(POLI)}&dokter=${encodeURIComponent(DOKTER)}`)
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('syncDot').style.background = '#10b981';
+
+            data.forEach(item => {
+                const card = document.querySelector(
+                    `.dokter-card[data-kd-dokter="${item.kd_dokter}"][data-kd-poli="${item.kd_poli}"]`
+                );
+                if (!card) return;
+
+                card.classList.toggle('has-call', !!item.no_antrian);
+
+                // Update now-serving
+                const nsEl = card.querySelector('.now-serving, .ns-empty');
+                if (item.no_antrian) {
+                    nsEl.outerHTML = `<div class="now-serving">
+                        <div class="ns-left">
+                            <div class="ns-label"><i class="bi bi-megaphone-fill"></i> Sedang Dilayani</div>
+                            <div class="ns-number">${item.no_antrian}</div>
+                        </div>
+                        <div class="ns-right">
+                            <div class="ns-name">${item.nm_pasien || ''}</div>
+                        </div>
+                    </div>`;
+                } else {
+                    nsEl.outerHTML = `<div class="ns-empty"><i class="bi bi-hourglass-split"></i> Menunggu Panggilan...</div>`;
+                }
+
+                // Update stats
+                const vals = card.querySelectorAll('.cs-val');
+                if (vals.length >= 3) {
+                    vals[0].textContent = item.total || 0;
+                    vals[1].textContent = item.menunggu || 0;
+                    vals[2].textContent = item.sudah || 0;
+                }
+
+                // Highlight row aktif
+                card.querySelectorAll('.pasien-row').forEach(row => {
+                    if (item.no_rawat && row.dataset.noRawat === item.no_rawat) {
+                        row.classList.add('active');
+                        row.classList.remove('done');
+                    }
+                });
+            });
+        })
+        .catch(() => {
+            document.getElementById('syncDot').style.background = '#ef4444';
+        });
+}
+
+setInterval(pollCalls, 3000);
+
+// Full reload setiap 5 menit
 setInterval(() => location.reload(), 300000);
 </script>
 </body>

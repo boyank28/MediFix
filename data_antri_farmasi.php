@@ -203,7 +203,7 @@ if (!empty($data)) {
 // URL SERVER PENYERAHAN RESEP
 // Sesuaikan dengan alamat server Anda
 // ============================================================
-define('URL_PENYERAHAN', 'http://ipserver/webapps/penyerahanresep/index.php');
+define('URL_PENYERAHAN', 'http://172.16.10.198/webapps/penyerahanresep/index.php');
 
 // ============================================================
 // CSS & JS
